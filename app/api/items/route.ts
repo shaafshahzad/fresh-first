@@ -1,14 +1,39 @@
-import { asc, eq } from "drizzle-orm";
-import { getDb } from "../../../db";
-import { ensureSchema } from "../../../db/ensure";
-import { fridgeItems } from "../../../db/schema";
+import { getSql } from "../../../db";
+import {
+  type FridgeItem,
+  type FridgeItemRow,
+  toFridgeItem,
+} from "../../../db/schema";
+
+export const dynamic = "force-dynamic";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_BATCH_SIZE = 25;
+
+type ItemInput = {
+  name?: unknown;
+  expiresOn?: unknown;
+};
 
 function isValidDate(value: string) {
   if (!ISO_DATE.test(value)) return false;
   const date = new Date(`${value}T12:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+}
+
+function validateItem(input: ItemInput) {
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  const expiresOn =
+    typeof input.expiresOn === "string" ? input.expiresOn : "";
+
+  if (!name || name.length > 80) {
+    throw new Error("Enter a product name between 1 and 80 characters.");
+  }
+  if (!isValidDate(expiresOn)) {
+    throw new Error("Choose a valid expiry date.");
+  }
+
+  return { name, expiresOn };
 }
 
 function publicError(error: unknown) {
@@ -21,19 +46,16 @@ function publicError(error: unknown) {
 
 export async function GET() {
   try {
-    await ensureSchema();
-    const db = getDb();
-    const items = await db
-      .select()
-      .from(fridgeItems)
-      .orderBy(
-        asc(fridgeItems.expiresOn),
-        asc(fridgeItems.name),
-        asc(fridgeItems.id),
-      );
+    const sql = getSql();
+    const rows = (await sql`
+      SELECT id, name, expires_on, created_at
+      FROM fridge_items
+      WHERE status = 'active'
+      ORDER BY expires_on ASC, LOWER(name) ASC, id ASC
+    `) as FridgeItemRow[];
 
     return Response.json(
-      { items },
+      { items: rows.map(toFridgeItem) },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
@@ -43,36 +65,43 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const payload = (await request.json()) as {
-      name?: unknown;
-      expiresOn?: unknown;
+    const payload = (await request.json()) as ItemInput & {
+      items?: ItemInput[];
     };
-    const name = typeof payload.name === "string" ? payload.name.trim() : "";
-    const expiresOn =
-      typeof payload.expiresOn === "string" ? payload.expiresOn : "";
+    const inputs = Array.isArray(payload.items) ? payload.items : [payload];
 
-    if (!name || name.length > 80) {
+    if (inputs.length === 0 || inputs.length > MAX_BATCH_SIZE) {
       return Response.json(
-        { error: "Enter a product name between 1 and 80 characters." },
+        { error: `Add between 1 and ${MAX_BATCH_SIZE} items at a time.` },
         { status: 400 },
       );
     }
 
-    if (!isValidDate(expiresOn)) {
+    let validated: Array<{ name: string; expiresOn: string }>;
+    try {
+      validated = inputs.map(validateItem);
+    } catch (error) {
       return Response.json(
-        { error: "Choose a valid expiry date." },
+        { error: error instanceof Error ? error.message : "Invalid item." },
         { status: 400 },
       );
     }
 
-    await ensureSchema();
-    const db = getDb();
-    const [item] = await db
-      .insert(fridgeItems)
-      .values({ name, expiresOn })
-      .returning();
+    const sql = getSql();
+    const items: FridgeItem[] = [];
+    for (const input of validated) {
+      const rows = (await sql`
+        INSERT INTO fridge_items (name, expires_on)
+        VALUES (${input.name}, ${input.expiresOn})
+        RETURNING id, name, expires_on, created_at
+      `) as FridgeItemRow[];
+      items.push(toFridgeItem(rows[0]));
+    }
 
-    return Response.json({ item }, { status: 201 });
+    return Response.json(
+      { item: items[0], items },
+      { status: 201 },
+    );
   } catch (error) {
     return publicError(error);
   }
@@ -82,21 +111,28 @@ export async function DELETE(request: Request) {
   try {
     const id = Number(new URL(request.url).searchParams.get("id"));
     if (!Number.isSafeInteger(id) || id < 1) {
-      return Response.json({ error: "A valid item id is required." }, { status: 400 });
+      return Response.json(
+        { error: "A valid item id is required." },
+        { status: 400 },
+      );
     }
 
-    await ensureSchema();
-    const db = getDb();
-    const [item] = await db
-      .delete(fridgeItems)
-      .where(eq(fridgeItems.id, id))
-      .returning();
+    const sql = getSql();
+    const rows = (await sql`
+      UPDATE fridge_items
+      SET status = 'used', removed_at = NOW()
+      WHERE id = ${id} AND status = 'active'
+      RETURNING id, name, expires_on, created_at
+    `) as FridgeItemRow[];
 
-    if (!item) {
-      return Response.json({ error: "That item no longer exists." }, { status: 404 });
+    if (rows.length === 0) {
+      return Response.json(
+        { error: "That item no longer exists." },
+        { status: 404 },
+      );
     }
 
-    return Response.json({ item });
+    return Response.json({ item: toFridgeItem(rows[0]) });
   } catch (error) {
     return publicError(error);
   }

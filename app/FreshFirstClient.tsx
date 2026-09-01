@@ -1,13 +1,31 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { parseQuickItems, type QuickItem } from "../lib/quick-add";
 
 type FridgeItem = {
   id: number;
   name: string;
   expiresOn: string;
   createdAt: string;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: {
+    results: ArrayLike<ArrayLike<{ transcript: string }>>;
+  }) => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
 };
 
 function localIsoDate(offsetDays = 0) {
@@ -62,6 +80,7 @@ function sorted(items: FridgeItem[]) {
 
 export function FreshFirstClient() {
   const [items, setItems] = useState<FridgeItem[]>([]);
+  const [quickText, setQuickText] = useState("");
   const [name, setName] = useState("");
   const [expiresOn, setExpiresOn] = useState("");
   const [loading, setLoading] = useState(true);
@@ -69,6 +88,7 @@ export function FreshFirstClient() {
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const nameInput = useRef<HTMLInputElement>(null);
+  const quickParse = useMemo(() => parseQuickItems(quickText), [quickText]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -96,31 +116,84 @@ export function FreshFirstClient() {
     return () => controller.abort();
   }, []);
 
-  async function addItem(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!name.trim() || !expiresOn || saving) return;
-
+  async function saveItems(inputs: Array<Pick<QuickItem, "name" | "expiresOn">>) {
     setSaving(true);
     setError("");
     try {
       const response = await fetch("/api/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, expiresOn }),
+        body: JSON.stringify({ items: inputs }),
       });
-      const body = (await response.json()) as { item?: FridgeItem; error?: string };
-      if (!response.ok || !body.item) {
-        throw new Error(body.error ?? "Unable to add item");
+      const body = (await response.json()) as {
+        items?: FridgeItem[];
+        error?: string;
+      };
+      if (!response.ok || !body.items) {
+        throw new Error(body.error ?? "Unable to add items");
       }
-      setItems((current) => sorted([...current, body.item as FridgeItem]));
-      setName("");
-      setExpiresOn("");
-      nameInput.current?.focus();
+      setItems((current) => sorted([...current, ...(body.items ?? [])]));
+      return true;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to add item.");
+      setError(caught instanceof Error ? caught.message : "Unable to add items.");
+      return false;
     } finally {
       setSaving(false);
     }
+  }
+
+  async function addQuickItems(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (
+      saving ||
+      quickParse.items.length === 0 ||
+      quickParse.errors.length > 0
+    ) {
+      return;
+    }
+
+    const saved = await saveItems(quickParse.items);
+    if (saved) setQuickText("");
+  }
+
+  async function addExactItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name.trim() || !expiresOn || saving) return;
+
+    const saved = await saveItems([{ name, expiresOn }]);
+    if (saved) {
+      setName("");
+      setExpiresOn("");
+      nameInput.current?.focus();
+    }
+  }
+
+  function startDictation() {
+    const speechWindow = window as typeof window & {
+      SpeechRecognition?: new () => SpeechRecognitionLike;
+      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+    };
+    const Recognition =
+      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+
+    if (!Recognition) {
+      setError("Voice capture is unavailable here. Your phone keyboard’s microphone works in the same field.");
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = "en-CA";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim();
+      if (!transcript) return;
+      setQuickText((current) => current ? `${current}\n${transcript}` : transcript);
+    };
+    recognition.onerror = () => {
+      setError("I could not hear that clearly. Try once more or type it instead.");
+    };
+    recognition.start();
   }
 
   async function removeItem(item: FridgeItem) {
@@ -128,10 +201,14 @@ export function FreshFirstClient() {
     setRemovingId(item.id);
     setError("");
     try {
-      const response = await fetch(`/api/items?id=${item.id}`, { method: "DELETE" });
+      const response = await fetch(`/api/items?id=${item.id}`, {
+        method: "DELETE",
+      });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error);
-      setItems((current) => current.filter((candidate) => candidate.id !== item.id));
+      setItems((current) =>
+        current.filter((candidate) => candidate.id !== item.id),
+      );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to remove item.");
     } finally {
@@ -154,63 +231,147 @@ export function FreshFirstClient() {
 
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Eat what matters, first</p>
+          <p className="eyebrow">Say it. Type it. Done.</p>
           <h1>What should you use next?</h1>
           <p className="lede">
-            Add an item and its expiry date. Fresh First keeps the most urgent food at the top automatically.
+            Add groceries the way you naturally think: “Milk tomorrow” or “Bread Sep 4.” One item per line, as many as you like.
           </p>
         </div>
 
-        <form className="add-card" onSubmit={addItem}>
-          <div className="form-heading">
-            <div>
-              <p className="eyebrow">Quick add</p>
-              <h2>Add something to the fridge</h2>
-            </div>
-          </div>
-          <label>
-            Product name
-            <input
-              ref={nameInput}
-              type="text"
-              name="name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. Greek yogurt"
-              maxLength={80}
-              autoComplete="off"
-              required
-            />
-          </label>
-          <label>
-            Expiry date
-            <input
-              type="date"
-              name="expiresOn"
-              value={expiresOn}
-              onChange={(event) => setExpiresOn(event.target.value)}
-              required
-            />
-          </label>
-          <div className="date-shortcuts" aria-label="Quick expiry dates">
-            {[{ label: "Today", days: 0 }, { label: "Tomorrow", days: 1 }, { label: "+3 days", days: 3 }, { label: "+7 days", days: 7 }].map((option) => (
+        <div className="capture-stack">
+          <form className="add-card quick-card" onSubmit={addQuickItems}>
+            <div className="form-heading">
+              <div>
+                <p className="eyebrow">Quick capture</p>
+                <h2>What did you put away?</h2>
+              </div>
               <button
+                className="voice-button"
                 type="button"
-                key={option.label}
-                onClick={() => setExpiresOn(localIsoDate(option.days))}
-                aria-pressed={expiresOn === localIsoDate(option.days)}
+                onClick={startDictation}
+                aria-label="Add an item by voice"
               >
-                {option.label}
+                <span aria-hidden="true">●</span> Speak
               </button>
-            ))}
-          </div>
-          <button type="submit" disabled={saving || !name.trim() || !expiresOn}>
-            {saving ? "Adding…" : "Add to fridge"} <span aria-hidden="true">→</span>
-          </button>
-        </form>
+            </div>
+            <label className="capture-label">
+              <span className="sr-only">Items and expiry dates</span>
+              <textarea
+                value={quickText}
+                onChange={(event) => setQuickText(event.target.value)}
+                placeholder={"Milk tomorrow\nTortillas Sep 4\nBread Friday"}
+                rows={4}
+                autoCapitalize="sentences"
+                spellCheck
+              />
+            </label>
+
+            {quickText ? (
+              <div className="parse-preview" aria-live="polite">
+                {quickParse.items.map((item) => (
+                  <span className="parsed-item" key={item.source}>
+                    <strong>{item.name}</strong> · {displayDate(item.expiresOn)}
+                  </span>
+                ))}
+                {quickParse.errors.map((item) => (
+                  <span className="parse-error" key={item.line}>
+                    Couldn’t read “{item.line}”
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="example-row">
+                <span>Try</span>
+                {["Milk tomorrow", "Bread Sep 4", "Leftovers +3 days"].map(
+                  (example) => (
+                    <button
+                      type="button"
+                      key={example}
+                      onClick={() => setQuickText(example)}
+                    >
+                      {example}
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={
+                saving ||
+                quickParse.items.length === 0 ||
+                quickParse.errors.length > 0
+              }
+            >
+              {saving
+                ? "Adding…"
+                : quickParse.items.length > 1
+                  ? `Add ${quickParse.items.length} items`
+                  : "Add to fridge"}
+              <span aria-hidden="true">→</span>
+            </button>
+          </form>
+
+          <details className="exact-entry">
+            <summary>Prefer exact fields?</summary>
+            <form onSubmit={addExactItem}>
+              <label>
+                Product name
+                <input
+                  ref={nameInput}
+                  type="text"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="e.g. Greek yogurt"
+                  maxLength={80}
+                  autoComplete="off"
+                  required
+                />
+              </label>
+              <label>
+                Expiry date
+                <input
+                  type="date"
+                  value={expiresOn}
+                  onChange={(event) => setExpiresOn(event.target.value)}
+                  required
+                />
+              </label>
+              <div className="date-shortcuts" aria-label="Quick expiry dates">
+                {[
+                  { label: "Today", days: 0 },
+                  { label: "Tomorrow", days: 1 },
+                  { label: "+3 days", days: 3 },
+                  { label: "+7 days", days: 7 },
+                ].map((option) => (
+                  <button
+                    type="button"
+                    key={option.label}
+                    onClick={() => setExpiresOn(localIsoDate(option.days))}
+                    aria-pressed={expiresOn === localIsoDate(option.days)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="exact-submit"
+                type="submit"
+                disabled={saving || !name.trim() || !expiresOn}
+              >
+                Add item
+              </button>
+            </form>
+          </details>
+        </div>
       </section>
 
-      <section className="fridge-section" id="fridge" aria-labelledby="fridge-heading">
+      <section
+        className="fridge-section"
+        id="fridge"
+        aria-labelledby="fridge-heading"
+      >
         <div className="section-heading">
           <div>
             <p className="eyebrow">Your fridge</p>
@@ -231,20 +392,27 @@ export function FreshFirstClient() {
           <div className="empty-state">
             <span aria-hidden="true">01</span>
             <div>
-              <h3>Add your first item above.</h3>
+              <h3>Capture your first item above.</h3>
               <p>It will appear here—and on the fridge display—ordered by expiry.</p>
             </div>
           </div>
         ) : (
           <div className="item-list" aria-live="polite">
             {items.map((item, index) => (
-              <article className={`food-item ${toneFor(item.expiresOn)}`} key={item.id}>
-                <span className="item-number">{String(index + 1).padStart(2, "0")}</span>
+              <article
+                className={`food-item ${toneFor(item.expiresOn)}`}
+                key={item.id}
+              >
+                <span className="item-number">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
                 <div className="item-name">
                   <h3>{item.name}</h3>
                   <p>{timingLabel(item.expiresOn)}</p>
                 </div>
-                <time dateTime={item.expiresOn}>{displayDate(item.expiresOn)}</time>
+                <time dateTime={item.expiresOn}>
+                  {displayDate(item.expiresOn)}
+                </time>
                 <button
                   type="button"
                   onClick={() => void removeItem(item)}
