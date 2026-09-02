@@ -26,11 +26,15 @@ type SpeechRecognitionLike = {
   lang: string;
   interimResults: boolean;
   maxAlternatives: number;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onnomatch: (() => void) | null;
   onresult: ((event: {
     results: ArrayLike<ArrayLike<{ transcript: string }>>;
   }) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
   start: () => void;
+  abort: () => void;
 };
 
 function localIsoDate(offsetDays = 0) {
@@ -92,8 +96,12 @@ export function FreshFirstClient() {
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [voiceState, setVoiceState] = useState<"idle" | "starting" | "listening">("idle");
+  const [captureNotice, setCaptureNotice] = useState("");
   const [error, setError] = useState("");
   const nameInput = useRef<HTMLInputElement>(null);
+  const quickInput = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const quickParse = useMemo(() => parseQuickItems(quickText), [quickText]);
 
   useEffect(() => {
@@ -121,6 +129,13 @@ export function FreshFirstClient() {
 
     return () => controller.abort();
   }, []);
+
+  useEffect(
+    () => () => {
+      recognitionRef.current?.abort();
+    },
+    [],
+  );
 
   async function saveItems(inputs: Array<Pick<QuickItem, "name" | "expiresOn">>) {
     setSaving(true);
@@ -175,6 +190,14 @@ export function FreshFirstClient() {
   }
 
   function startDictation() {
+    if (voiceState !== "idle") {
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
+      setVoiceState("idle");
+      setCaptureNotice("Voice capture stopped.");
+      return;
+    }
+
     const speechWindow = window as typeof window & {
       SpeechRecognition?: new () => SpeechRecognitionLike;
       webkitSpeechRecognition?: new () => SpeechRecognitionLike;
@@ -183,23 +206,62 @@ export function FreshFirstClient() {
       speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
 
     if (!Recognition) {
-      setError("Voice capture is unavailable here. Your phone keyboard’s microphone works in the same field.");
+      setCaptureNotice(
+        "This browser does not provide speech recognition. Open Fresh First directly in Chrome, Edge, or Safari—or tap the text box and use your phone keyboard’s microphone.",
+      );
+      quickInput.current?.focus();
       return;
     }
 
     const recognition = new Recognition();
+    recognitionRef.current = recognition;
+    setVoiceState("starting");
+    setCaptureNotice("Requesting microphone access…");
     recognition.lang = "en-CA";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
+    const startTimer = window.setTimeout(() => {
+      if (recognitionRef.current !== recognition) return;
+      recognition.abort();
+      setCaptureNotice(
+        "The microphone did not start. Check for a permission prompt, or open Fresh First directly in Chrome, Edge, or Safari.",
+      );
+    }, 10_000);
+    recognition.onstart = () => {
+      window.clearTimeout(startTimer);
+      setVoiceState("listening");
+      setCaptureNotice("Listening… Say the product and date, for example “Milk tomorrow.”");
+    };
     recognition.onresult = (event) => {
       const transcript = event.results[0]?.[0]?.transcript?.trim();
       if (!transcript) return;
       setQuickText((current) => current ? `${current}\n${transcript}` : transcript);
+      setCaptureNotice(`Heard: “${transcript}”`);
     };
-    recognition.onerror = () => {
-      setError("I could not hear that clearly. Try once more or type it instead.");
+    recognition.onnomatch = () => {
+      setCaptureNotice("I couldn’t make that out. Tap Speak and try again a little closer to the microphone.");
     };
-    recognition.start();
+    recognition.onerror = (event) => {
+      window.clearTimeout(startTimer);
+      const permissionBlocked = event.error === "not-allowed" || event.error === "service-not-allowed";
+      setCaptureNotice(
+        permissionBlocked
+          ? "Microphone access was blocked. Allow microphone access for this site, then tap Speak again."
+          : "Voice recognition stopped before it heard an item. Tap Speak to retry, or use your keyboard microphone.",
+      );
+    };
+    recognition.onend = () => {
+      window.clearTimeout(startTimer);
+      recognitionRef.current = null;
+      setVoiceState("idle");
+    };
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setVoiceState("idle");
+      setCaptureNotice("Voice recognition could not start. Check microphone permission and try again.");
+    }
   }
 
   async function removeItem(item: FridgeItem) {
@@ -261,18 +323,28 @@ export function FreshFirstClient() {
                   <span aria-hidden="true">▣</span> Scan dates
                 </button>
                 <button
-                  className="voice-button"
+                  className={`voice-button ${voiceState}`}
                   type="button"
                   onClick={startDictation}
                   aria-label="Add an item by voice"
+                  aria-pressed={voiceState === "listening"}
                 >
-                  <span aria-hidden="true">●</span> Speak
+                  <span aria-hidden="true">●</span>{" "}
+                  {voiceState === "listening"
+                    ? "Stop listening"
+                    : voiceState === "starting"
+                      ? "Starting…"
+                      : "Speak"}
                 </button>
               </div>
             </div>
+            {captureNotice ? (
+              <p className="capture-notice" role="status">{captureNotice}</p>
+            ) : null}
             <label className="capture-label">
               <span className="sr-only">Items and expiry dates</span>
               <textarea
+                ref={quickInput}
                 value={quickText}
                 onChange={(event) => setQuickText(event.target.value)}
                 placeholder={"Milk tomorrow\nTortillas Sep 4\nBread Friday"}

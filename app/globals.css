@@ -84,10 +84,13 @@ input:focus, textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px 
 .voice-button { align-self: start; display: flex; align-items: center; gap: 7px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--green); font-size: 12px; font-weight: 750; cursor: pointer; }
 .voice-button span { color: var(--coral); font-size: 9px; }
 .voice-button:hover { background: #edf3ed; }
+.voice-button.starting, .voice-button.listening { border-color: var(--coral); background: #fff0ea; color: #873b29; }
+.voice-button.listening span { animation: scanner-pulse .7s infinite alternate; }
 .capture-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .scan-button { align-self: start; display: flex; align-items: center; gap: 7px; padding: 8px 11px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: white; font-size: 12px; font-weight: 750; cursor: pointer; }
 .scan-button span { color: var(--lime); }
 .scan-button:hover { background: var(--green); border-color: var(--green); }
+.capture-notice { margin: -12px 0 16px; padding: 10px 12px; border: 1px solid #d9d7cd; border-radius: 10px; background: #f6f3eb; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .capture-label { margin: 0; }
 .capture-label textarea { width: 100%; min-height: 132px; resize: vertical; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: white; color: var(--ink); font-size: 17px; line-height: 1.55; outline: none; }
 .capture-label textarea::placeholder { color: #9aa39f; }
@@ -136,6 +139,12 @@ input:focus, textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px 
 .scanner-instructions { padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; gap: 26px; }
 .scanner-instructions strong { white-space: nowrap; }
 .scanner-instructions p { max-width: 540px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.scanner-instructions > div:first-child { display: grid; gap: 6px; }
+.scanner-fallback-actions { flex: 0 0 auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.scanner-fallback-actions button, .scan-photo-button { min-height: 42px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font-size: 12px; font-weight: 750; cursor: pointer; }
+.scan-photo-button { margin: 0; background: var(--ink); color: white; }
+.scan-photo-button:hover { background: var(--green); }
+.scan-photo-button:has(input:disabled) { opacity: .5; cursor: wait; }
 .scanner-footer { width: 100%; margin: 0; padding: 15px 24px 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .scanner-footer span { max-width: 500px; }
 .scanner-footer button { flex: 0 0 auto; padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font-weight: 750; cursor: pointer; }
@@ -229,6 +238,8 @@ footer { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 30px 0;
   .scanner-review-actions { grid-template-columns: 1fr 1.6fr; }
   .scanner-review-actions button { min-height: 50px; padding-inline: 10px; font-size: 13px; }
   .scanner-instructions { padding: 16px 18px; align-items: start; flex-direction: column; gap: 7px; }
+  .scanner-fallback-actions { width: 100%; margin-top: 7px; justify-content: stretch; }
+  .scanner-fallback-actions button, .scan-photo-button { min-height: 46px; flex: 1; }
   .scanner-footer { margin-top: auto; padding: 14px 16px max(16px, env(safe-area-inset-bottom)); flex-direction: row; align-items: center; background: var(--card); }
   .scanner-footer span { line-height: 1.4; }
   .scanner-footer button { min-height: 44px; }

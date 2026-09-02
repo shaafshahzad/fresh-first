@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { formatCalendarDate } from "../lib/calendar-date";
 import {
   extractExpiryCandidates,
@@ -20,6 +20,22 @@ type ScannerState = "loading" | "scanning" | "reviewing" | "error";
 
 function wait(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function cameraErrorMessage(error: unknown) {
+  if (!(error instanceof DOMException)) {
+    return "The camera could not start. Open Fresh First directly in Chrome, Edge, or Safari and try again.";
+  }
+  if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+    return "Camera access was blocked. Allow camera access for this site in your browser settings, then retry.";
+  }
+  if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+    return "No camera was found on this device. You can scan an existing photo instead.";
+  }
+  if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+    return "The camera is already in use by another app. Close that app, then retry.";
+  }
+  return "The camera could not start. Check its browser permission, or scan a photo instead.";
 }
 
 function captureScanBand(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
@@ -60,6 +76,7 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<OcrWorker | null>(null);
+  const workerPromiseRef = useRef<Promise<OcrWorker> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const candidateRef = useRef<ExpiryCandidate | null>(null);
   const lockedDateRef = useRef<string | null>(null);
@@ -74,6 +91,8 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
   const [productName, setProductName] = useState("");
   const [saving, setSaving] = useState(false);
   const [sessionCount, setSessionCount] = useState(0);
+  const [retryKey, setRetryKey] = useState(0);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   useEffect(() => {
     candidateRef.current = candidate;
@@ -95,6 +114,8 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
     if (!open) return;
 
     let cancelled = false;
+    let cameraStarted = false;
+    let permissionTimer: number | undefined;
 
     async function scanLoop(worker: OcrWorker) {
       while (!cancelled) {
@@ -161,30 +182,7 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
     }
 
     async function start() {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error("Camera scanning is not supported in this browser.");
-        }
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        streamRef.current = stream;
-        const video = videoRef.current;
-        if (!video) return;
-        video.srcObject = stream;
-        await video.play();
-
-        setStatusText("Preparing private on-device text recognition…");
+      async function prepareWorker() {
         const Tesseract = await import("tesseract.js");
         const worker = await Tesseract.createWorker("eng", Tesseract.OEM.LSTM_ONLY, {
           logger: (message) => {
@@ -195,24 +193,74 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
         });
         if (cancelled) {
           await worker.terminate();
-          return;
+          throw new Error("Scanner closed");
         }
         workerRef.current = worker;
         await worker.setParameters({
           tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
           preserve_interword_spaces: "1",
         });
+        return worker;
+      }
+
+      const workerPromise = prepareWorker();
+      workerPromiseRef.current = workerPromise;
+      void workerPromise.catch(() => undefined);
+
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          if (!cancelled) {
+            setScannerState("error");
+            setStatusText(
+              "This browser cannot open a live camera. Open Fresh First directly in Chrome, Edge, or Safari—or scan a photo instead.",
+            );
+          }
+          return;
+        }
+
+        setStatusText("Waiting for camera permission…");
+        permissionTimer = window.setTimeout(() => {
+          if (!cancelled) {
+            setStatusText(
+              "Still waiting for camera permission. Check for a browser prompt, or scan a photo instead.",
+            );
+          }
+        }, 4000);
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+        });
+        window.clearTimeout(permissionTimer);
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        cameraStarted = true;
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = stream;
+        await video.play();
+
+        setStatusText("Preparing private on-device text recognition…");
+        const worker = await workerPromise;
         setProgress(100);
         setScannerState("scanning");
         setStatusText("Looking for a printed expiry date…");
         await scanLoop(worker);
       } catch (error) {
+        if (permissionTimer) window.clearTimeout(permissionTimer);
         if (cancelled) return;
         setScannerState("error");
         setStatusText(
-          error instanceof Error && error.message.includes("supported")
-            ? error.message
-            : "Camera access is needed for a scan session. You can still use quick capture instead.",
+          cameraStarted && !(error instanceof DOMException)
+            ? "The on-device date reader could not start. Refresh the page and retry, or enter the item manually."
+            : cameraErrorMessage(error),
         );
       }
     }
@@ -220,13 +268,54 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
     void start();
     return () => {
       cancelled = true;
+      if (permissionTimer) window.clearTimeout(permissionTimer);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       const worker = workerRef.current;
       workerRef.current = null;
+      workerPromiseRef.current = null;
       if (worker) void worker.terminate().catch(() => undefined);
     };
-  }, [open]);
+  }, [open, retryKey]);
+
+  function retryCamera() {
+    setScannerState("loading");
+    setStatusText("Retrying camera…");
+    setProgress(0);
+    setRetryKey((key) => key + 1);
+  }
+
+  async function scanPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file || photoBusy) return;
+
+    setPhotoBusy(true);
+    setScannerState("loading");
+    setStatusText("Reading the selected photo on this device…");
+    try {
+      const worker = await workerPromiseRef.current;
+      if (!worker) throw new Error("OCR unavailable");
+      const result = await worker.recognize(file);
+      const detected = extractExpiryCandidates(result.data.text)[0];
+      if (!detected) {
+        setScannerState("error");
+        setStatusText(
+          "No clear expiry date was found in that photo. Move closer, improve the lighting, and try another photo.",
+        );
+        return;
+      }
+      lockedDateRef.current = detected.isoDate;
+      setCandidate(detected);
+      setScannerState("reviewing");
+      setStatusText("Date found in photo");
+    } catch {
+      setScannerState("error");
+      setStatusText("The photo could not be read. Retry the camera or enter the item manually.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   function dismissCandidate() {
     blockedDateRef.current = lockedDateRef.current;
@@ -336,8 +425,32 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
           </form>
         ) : (
           <div className="scanner-instructions">
-            <strong>{sessionCount} {sessionCount === 1 ? "item" : "items"} added this session</strong>
-            <p>Move slowly. A date locks after it is read twice; then name the product and continue without closing the camera.</p>
+            <div>
+              <strong>{sessionCount} {sessionCount === 1 ? "item" : "items"} added this session</strong>
+              <p>
+                {scannerState === "error"
+                  ? statusText
+                  : "Move slowly. A date locks after it is read twice; then name the product and continue without closing the camera."}
+              </p>
+            </div>
+            <div className="scanner-fallback-actions">
+              {scannerState === "error" ? (
+                <button type="button" onClick={retryCamera}>Retry camera</button>
+              ) : null}
+              {scannerState !== "scanning" ? (
+                <label className="scan-photo-button">
+                  <input
+                    className="sr-only"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(event) => void scanPhoto(event)}
+                    disabled={photoBusy}
+                  />
+                  {photoBusy ? "Reading photo…" : "Scan a photo instead"}
+                </label>
+              ) : null}
+            </div>
           </div>
         )}
 
