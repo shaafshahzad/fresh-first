@@ -13,6 +13,7 @@ import {
   daysUntilCalendarDate,
   formatCalendarDate,
 } from "../lib/calendar-date";
+import { ExpiryScanner } from "./ExpiryScanner";
 
 type FridgeItem = {
   id: number;
@@ -90,6 +91,7 @@ export function FreshFirstClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [error, setError] = useState("");
   const nameInput = useRef<HTMLInputElement>(null);
   const quickParse = useMemo(() => parseQuickItems(quickText), [quickText]);
@@ -249,14 +251,24 @@ export function FreshFirstClient() {
                 <p className="eyebrow">Quick capture</p>
                 <h2>What did you put away?</h2>
               </div>
-              <button
-                className="voice-button"
-                type="button"
-                onClick={startDictation}
-                aria-label="Add an item by voice"
-              >
-                <span aria-hidden="true">●</span> Speak
-              </button>
+              <div className="capture-actions">
+                <button
+                  className="scan-button"
+                  type="button"
+                  onClick={() => setScannerOpen(true)}
+                  aria-label="Start a passive expiry date scan session"
+                >
+                  <span aria-hidden="true">▣</span> Scan dates
+                </button>
+                <button
+                  className="voice-button"
+                  type="button"
+                  onClick={startDictation}
+                  aria-label="Add an item by voice"
+                >
+                  <span aria-hidden="true">●</span> Speak
+                </button>
+              </div>
             </div>
             <label className="capture-label">
               <span className="sr-only">Items and expiry dates</span>
@@ -435,6 +447,14 @@ export function FreshFirstClient() {
         <p>Fresh First</p>
         <p>Designed for a quieter, less wasteful fridge.</p>
       </footer>
+
+      {scannerOpen ? (
+        <ExpiryScanner
+          open
+          onClose={() => setScannerOpen(false)}
+          onSave={(item) => saveItems([item])}
+        />
+      ) : null}
     </main>
   );
 }

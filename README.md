@@ -10,6 +10,8 @@ soonest expiry to the latest.
 - Natural-language quick capture with one item per line
 - Optional browser voice recognition and native phone dictation support
 - Batch entry for several groceries at once
+- Passive camera sessions that continuously look for printed expiry dates
+- On-device OCR with a two-read date lock and correction step
 - Exact product-name and date fields as a fallback
 - Durable Neon Postgres storage connected through Vercel
 - Automatic expiry sorting
@@ -20,6 +22,11 @@ soonest expiry to the latest.
 
 Quick capture understands `today`, `tomorrow`, `Friday`, `next Friday`,
 `in 3 days`, `+3 days`, `Sep 4`, `4 Sep`, `9/4`, and ISO dates.
+
+The scan session keeps the rear camera open between products. Once a printed
+date is read consistently, the user names the product, corrects the date if
+needed, saves it, and immediately moves to the next package. Camera frames are
+processed in memory by Tesseract.js and are not uploaded or stored.
 
 ## Development
 
