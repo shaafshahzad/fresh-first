@@ -277,10 +277,68 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
 .display-footer { width: 100%; padding-top: 20px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .display-footer a { color: var(--ink); font-weight: 720; text-decoration: none; }
 
+.account-shell { width: min(1120px, calc(100% - 48px)); min-height: 100dvh; margin: 0 auto; padding-bottom: 64px; }
+.account-brand { min-height: 80px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.account-back { min-height: 44px; display: inline-flex; align-items: center; color: var(--ink); font-weight: 680; text-decoration-color: var(--line); }
+.account-loading { margin: 0; padding-top: 25vh; color: var(--muted); text-align: center; }
+.auth-layout { min-height: calc(100dvh - 144px); padding: 72px 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); gap: clamp(56px, 10vw, 132px); align-items: center; }
+.auth-intro h1 { max-width: 660px; font-size: clamp(54px, 7.2vw, 92px); }
+.auth-intro > p:not(.eyebrow) { max-width: 520px; margin: 24px 0 0; color: var(--muted); font-size: 18px; line-height: 1.55; text-wrap: pretty; }
+.device-path { margin-top: 40px; display: grid; gap: 0; border-top: 1px solid var(--line); }
+.device-path span { min-height: 52px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line-soft); color: var(--muted); font-size: 13px; }
+.device-path b { width: 24px; color: var(--green); font: 700 11px var(--font-geist-mono), monospace; }
+.auth-card, .pair-card, .device-list-card { padding: 28px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); box-shadow: 0 18px 48px rgba(23,53,44,.045); }
+.auth-mode { margin: -16px -16px 26px; padding: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-radius: 9px; background: var(--green-soft); }
+.auth-mode button { min-height: 42px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+.auth-mode button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(23,53,44,.08); }
+.auth-card-heading { margin-bottom: 22px; }
+.auth-card-heading h2, .pair-card h2, .device-list-card h2 { margin: 0; font-size: 27px; line-height: 1.08; letter-spacing: -.04em; text-wrap: balance; }
+.auth-card label, .pair-card label { margin-top: 16px; }
+.auth-card label small { color: var(--muted); font-size: 11px; font-weight: 500; }
+.auth-card input, .pair-card input { background: #f6f4ed; }
+.auth-submit { width: 100%; min-height: 50px; margin-top: 22px; padding: 0 15px; display: flex; align-items: center; justify-content: space-between; border: 0; border-radius: 8px; background: var(--ink); color: white; font-weight: 730; text-decoration: none; cursor: pointer; }
+.auth-submit:hover { background: var(--ink-soft); }
+.auth-submit:disabled { opacity: .45; cursor: wait; }
+.auth-submit.inline { width: fit-content; min-width: 180px; }
+.form-error, .account-error { margin: 16px 0 0; padding: 11px 12px; border-left: 2px solid var(--coral); background: var(--coral-soft); color: #793c2b; font-size: 12px; }
+.device-context { margin: 0 0 18px; padding: 10px 12px; border-left: 2px solid var(--green); background: var(--green-soft); color: var(--muted); font-size: 12px; }
+.device-context strong { color: var(--ink); font: 700 11px var(--font-geist-mono), monospace; }
+.account-heading { padding: clamp(56px, 8vw, 88px) 0 40px; display: flex; align-items: end; justify-content: space-between; gap: 32px; }
+.account-heading h1 { margin: 0; font-size: clamp(48px, 7vw, 80px); }
+.account-heading > div > p:last-child { margin: 16px 0 0; color: var(--muted); }
+.text-button { min-height: 44px; padding: 0 4px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.text-button:hover { border-color: var(--ink); color: var(--ink); }
+.pairing-grid { padding: 0 0 28px; display: grid; grid-template-columns: minmax(320px, .8fr) minmax(0, 1.2fr); gap: 18px; align-items: start; }
+.pair-card-heading { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 24px; }
+.pair-symbol { width: 40px; height: 40px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: var(--ink); color: var(--lime); font-size: 23px; }
+.pair-code-input { height: 66px; text-align: center; font: 720 clamp(23px, 4vw, 34px) var(--font-geist-mono), monospace; letter-spacing: .16em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.pair-help { margin: 14px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.device-list-heading { min-height: 58px; padding-bottom: 20px; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); }
+.device-list-heading > span { min-width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; background: var(--green-soft); color: var(--green); font: 700 11px var(--font-geist-mono), monospace; }
+.device-empty { min-height: 140px; margin: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; text-align: center; }
+.device-list article { min-height: 76px; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 12px; align-items: center; border-bottom: 1px solid var(--line-soft); }
+.device-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px var(--green-soft); }
+.device-list article > div { min-width: 0; display: grid; gap: 3px; }
+.device-list article small { overflow: hidden; color: var(--muted); font: 550 10px var(--font-geist-mono), monospace; text-overflow: ellipsis; white-space: nowrap; }
+.device-list article button { min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; }
+.device-list article button:hover { color: #8b4937; }
+.device-list article button:disabled { opacity: .45; cursor: wait; }
+.display-preview-link { min-height: 48px; margin-top: 10px; display: flex; align-items: center; justify-content: space-between; color: var(--ink); font-size: 12px; font-weight: 700; text-decoration: none; }
+.display-preview-link:hover { text-decoration: underline; }
+.account-notice, .account-error { margin: 0; }
+.account-notice { padding: 12px 14px; border-left: 2px solid var(--green); background: var(--green-soft); color: var(--green); font-size: 12px; }
+.device-gate { width: min(760px, calc(100% - 48px)); min-height: 100dvh; margin: 0 auto; padding: 32px 0 72px; }
+.device-gate > section { min-height: calc(100dvh - 120px); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+.device-gate h1 { max-width: 720px; font-size: clamp(48px, 8vw, 82px); }
+.device-gate section > p:not(.eyebrow) { max-width: 600px; margin: 24px 0 0; color: var(--muted); font-size: 17px; }
+
 @media (max-width: 900px) {
   .hero { grid-template-columns: minmax(0, 1fr); gap: 40px; }
   .hero-copy { max-width: 660px; }
   .capture-stack { width: min(620px, 100%); }
+  .auth-layout { grid-template-columns: minmax(0, 1fr); gap: 42px; }
+  .auth-intro { max-width: 700px; }
+  .auth-card { width: min(520px, 100%); }
 }
 
 @media (max-width: 760px) {
@@ -289,6 +347,7 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
   .brand { gap: 9px; font-size: 17px; }
   .brand-mark { width: 30px; height: 30px; }
   .top-actions a { min-height: 44px; padding: 12px; display: inline-flex; align-items: center; }
+  .top-actions a:nth-child(2) { display: none; }
   .hero { width: calc(100% - 32px); grid-template-columns: minmax(0, 1fr); padding: 34px 0 46px; gap: 28px; }
   .hero-copy { min-width: 0; }
   h1 { max-width: 100%; font-size: clamp(44px, 13.5vw, 58px); line-height: .94; letter-spacing: -.06em; }
@@ -347,6 +406,21 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
   .display-list article { min-height: 98px; grid-template-columns: 34px 1fr; gap: 12px; padding: 14px 0; }
   .display-list article > time { grid-column: 2; justify-self: start; }
   .display-footer { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .account-shell { width: calc(100% - 32px); padding-bottom: max(40px, env(safe-area-inset-bottom)); }
+  .account-brand { min-height: 68px; padding-top: env(safe-area-inset-top); }
+  .auth-layout { min-height: auto; padding: 42px 0 24px; gap: 32px; }
+  .auth-intro h1 { font-size: clamp(44px, 13vw, 58px); }
+  .auth-intro > p:not(.eyebrow) { margin-top: 18px; font-size: 16px; }
+  .device-path { margin-top: 28px; }
+  .auth-card, .pair-card, .device-list-card { padding: 18px; border-radius: 14px; }
+  .auth-mode { margin: -8px -8px 22px; }
+  .account-heading { padding: 42px 0 28px; align-items: flex-start; flex-direction: column; gap: 18px; }
+  .account-heading h1 { font-size: 44px; }
+  .pairing-grid { grid-template-columns: minmax(0, 1fr); }
+  .pair-code-input { height: 62px; font-size: clamp(22px, 8vw, 30px); }
+  .device-list article { grid-template-columns: 10px minmax(0, 1fr); padding: 9px 0; }
+  .device-list article button { grid-column: 2; width: fit-content; }
+  .device-gate { width: calc(100% - 32px); padding-top: max(24px, env(safe-area-inset-top)); }
 }
 
 @media (max-width: 380px) {

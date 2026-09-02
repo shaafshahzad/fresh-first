@@ -103,7 +103,13 @@ function sorted(items: FridgeItem[]) {
   );
 }
 
-export function FreshFirstClient() {
+export function FreshFirstClient({
+  userName,
+  fridgeName,
+}: {
+  userName: string;
+  fridgeName: string;
+}) {
   const [items, setItems] = useState<FridgeItem[]>([]);
   const [quickText, setQuickText] = useState("");
   const [name, setName] = useState("");
@@ -583,6 +589,9 @@ export function FreshFirstClient() {
             </span>
           </a>
           <Link href="/display">Fridge display <span aria-hidden="true">↗</span></Link>
+          <Link href="/account" aria-label={`Open ${userName}'s account`}>
+            Account
+          </Link>
         </nav>
       </header>
 
@@ -599,10 +608,10 @@ export function FreshFirstClient() {
         </div>
 
         <div className="capture-stack">
-          <form className="add-card quick-card" onSubmit={addQuickItems}>
+          <form className="add-card quick-card" id="quick-add" onSubmit={addQuickItems}>
             <div className="form-heading">
               <div>
-                <p className="eyebrow">Quick add</p>
+                <p className="eyebrow">Quick add · {fridgeName}</p>
                 <h2>Add groceries as you unpack.</h2>
               </div>
             </div>
