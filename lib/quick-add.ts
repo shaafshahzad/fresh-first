@@ -104,7 +104,7 @@ export function parseQuickLine(
   value: string,
   now = new Date(),
 ): QuickItem | null {
-  const line = value.trim();
+  const line = value.trim().replace(/[.!?]+$/g, "").trim();
   if (!line) return null;
   let match: RegExpMatchArray | null;
 
@@ -136,6 +136,17 @@ export function parseQuickLine(
       line,
       match[1],
       makeDate(Number(match[2]), Number(match[3]) - 1, Number(match[4])),
+    );
+  }
+
+  match = line.match(
+    /^(.*?)[\s,;:()\-–—]+(\d{4})[\s,;:()\-–—]+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)[\s,;:()\-–—]+(\d{1,2})(?:st|nd|rd|th)?\)?$/i,
+  );
+  if (match) {
+    return finish(
+      line,
+      match[1],
+      makeDate(Number(match[2]), MONTHS[match[3].toLowerCase()], Number(match[4])),
     );
   }
 

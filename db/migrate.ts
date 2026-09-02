@@ -21,4 +21,14 @@ await sql`
   ON fridge_items (status, expires_on, name)
 `;
 
+await sql`
+  ALTER TABLE fridge_items
+  ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'user'
+`;
+
+await sql`
+  CREATE INDEX IF NOT EXISTS idx_fridge_items_source
+  ON fridge_items (source)
+`;
+
 console.log("Fresh First database is ready.");
