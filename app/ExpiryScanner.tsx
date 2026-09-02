@@ -276,7 +276,6 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
         workerRef.current = worker;
         await worker.setParameters({
           tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
-          tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-./: ",
           preserve_interword_spaces: "1",
           user_defined_dpi: "300",
         });
