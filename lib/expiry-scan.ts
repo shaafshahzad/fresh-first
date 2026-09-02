@@ -5,33 +5,48 @@ export type ExpiryCandidate = {
 };
 
 const MONTHS: Record<string, number> = {
+  JA: 0,
   JAN: 0,
   JANUARY: 0,
+  FE: 1,
   FEB: 1,
   FEBRUARY: 1,
+  MR: 2,
   MAR: 2,
   MARCH: 2,
+  AL: 3,
   APR: 3,
   APRIL: 3,
+  MA: 4,
   MAY: 4,
+  JN: 5,
   JUN: 5,
   JUNE: 5,
+  JL: 6,
   JUL: 6,
   JULY: 6,
+  AU: 7,
   AUG: 7,
   AUGUST: 7,
+  SE: 8,
   SEP: 8,
   SEPT: 8,
   SEPTEMBER: 8,
+  OC: 9,
   OCT: 9,
   OCTOBER: 9,
+  NO: 10,
   NOV: 10,
   NOVEMBER: 10,
+  DE: 11,
   DEC: 11,
   DECEMBER: 11,
 };
 
+const CANADIAN_MONTH_CODES = "JA|FE|MR|AL|MA|JN|JL|AU|SE|(?:O|0)C|N(?:O|0)|DE";
+
 const MONTH_PATTERN = Object.keys(MONTHS)
+  .filter((month) => month.length >= 3)
   .sort((a, b) => b.length - a.length)
   .join("|");
 
@@ -68,6 +83,25 @@ function normalizeYear(value: string, now: Date) {
   let year = century + parsed;
   if (year < now.getFullYear() - 1) year += 100;
   return year;
+}
+
+function normalizeOcrNumber(value: string) {
+  return value.replace(/O/g, "0").replace(/[IL|]/g, "1");
+}
+
+function normalizeStampedYear(value: string, now: Date) {
+  const normalized = normalizeOcrNumber(value);
+  if (normalized.length === 4) return Number(normalized);
+  if (normalized.length === 3 && normalized.startsWith("0")) {
+    return 2000 + Number(normalized);
+  }
+  if (normalized.length === 2) return normalizeYear(normalized, now);
+  if (normalized.length === 1) {
+    let year = Math.floor(now.getFullYear() / 10) * 10 + Number(normalized);
+    if (year < now.getFullYear() - 1) year += 10;
+    return year;
+  }
+  return Number.NaN;
 }
 
 function inferredYear(month: number, day: number, now: Date) {
@@ -117,6 +151,25 @@ export function extractExpiryCandidates(
     /\b(20\d{2})[\s./-](\d{1,2})[\s./-](\d{1,2})\b/g,
   )) {
     add(Number(match[1]), Number(match[2]) - 1, Number(match[3]), match[0], "high");
+  }
+
+  // Canadian best-before dates commonly use the bilingual YEAR-MONTH-DAY
+  // symbols JA, FE, MR, AL, MA, JN, JL, AU, SE, OC, NO, and DE.
+  const canadianStamp = new RegExp(
+    `\\b([0-9OIL|]{1,4})[\\s./-]+(${CANADIAN_MONTH_CODES})[\\s./-]+([0-9OIL|]{1,2})\\b`,
+    "g",
+  );
+  for (const match of text.matchAll(canadianStamp)) {
+    const rawYear = match[1];
+    const monthCode = match[2].replace(/0/g, "O");
+    const day = Number(normalizeOcrNumber(match[3]));
+    add(
+      normalizeStampedYear(rawYear, now),
+      MONTHS[monthCode],
+      day,
+      match[0],
+      rawYear.length === 2 || rawYear.length === 4 ? "high" : "review",
+    );
   }
 
   for (const match of numericText.matchAll(/\b(20\d{2})(\d{2})(\d{2})\b/g)) {

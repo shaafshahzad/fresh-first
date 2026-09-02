@@ -18,6 +18,13 @@ type ScannerProps = {
 
 type ScannerState = "loading" | "scanning" | "reviewing" | "error";
 
+type ScanRegion = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
 function wait(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
@@ -38,16 +45,18 @@ function cameraErrorMessage(error: unknown) {
   return "The camera could not start. Check its browser permission, or scan a photo instead.";
 }
 
-function captureScanBand(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
-  const sourceWidth = video.videoWidth;
-  const sourceHeight = video.videoHeight;
-  if (!sourceWidth || !sourceHeight) return false;
-
-  const cropWidth = Math.round(sourceWidth * 0.88);
-  const cropHeight = Math.round(sourceHeight * 0.42);
-  const sourceX = Math.round((sourceWidth - cropWidth) / 2);
-  const sourceY = Math.round((sourceHeight - cropHeight) / 2);
-  const outputWidth = Math.min(1280, cropWidth);
+function drawEnhancedRegion(
+  source: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number,
+  canvas: HTMLCanvasElement,
+  region: ScanRegion,
+) {
+  const sourceX = Math.max(0, Math.min(sourceWidth - 1, region.left));
+  const sourceY = Math.max(0, Math.min(sourceHeight - 1, region.top));
+  const cropWidth = Math.max(1, Math.min(sourceWidth - sourceX, region.width));
+  const cropHeight = Math.max(1, Math.min(sourceHeight - sourceY, region.height));
+  const outputWidth = Math.round(Math.min(2200, Math.max(1600, cropWidth)));
   const outputHeight = Math.round(outputWidth * (cropHeight / cropWidth));
 
   canvas.width = outputWidth;
@@ -55,9 +64,11 @@ function captureScanBand(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) return false;
 
-  context.filter = "grayscale(1) contrast(1.75)";
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.filter = "grayscale(1) contrast(2)";
   context.drawImage(
-    video,
+    source,
     sourceX,
     sourceY,
     cropWidth,
@@ -71,8 +82,74 @@ function captureScanBand(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
   return true;
 }
 
+function captureScanBand(
+  video: HTMLVideoElement,
+  frame: HTMLDivElement,
+  canvas: HTMLCanvasElement,
+) {
+  const sourceWidth = video.videoWidth;
+  const sourceHeight = video.videoHeight;
+  if (!sourceWidth || !sourceHeight) return false;
+
+  const videoBounds = video.getBoundingClientRect();
+  const frameBounds = frame.getBoundingClientRect();
+  if (!videoBounds.width || !videoBounds.height) return false;
+
+  // The preview uses object-fit: cover. Translate the visible guide rectangle
+  // back into source-camera pixels so mobile portrait video is not over-cropped.
+  const scale = Math.max(
+    videoBounds.width / sourceWidth,
+    videoBounds.height / sourceHeight,
+  );
+  const hiddenX = (sourceWidth * scale - videoBounds.width) / 2;
+  const hiddenY = (sourceHeight * scale - videoBounds.height) / 2;
+  const sourceX = (frameBounds.left - videoBounds.left + hiddenX) / scale;
+  const sourceY = (frameBounds.top - videoBounds.top + hiddenY) / scale;
+  const cropWidth = frameBounds.width / scale;
+  const cropHeight = frameBounds.height / scale;
+
+  return drawEnhancedRegion(
+    video,
+    sourceWidth,
+    sourceHeight,
+    canvas,
+    { left: sourceX, top: sourceY, width: cropWidth, height: cropHeight },
+  );
+}
+
+async function recognizePhotoDate(
+  worker: OcrWorker,
+  file: File,
+  onPass: (pass: number, total: number) => void,
+) {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const canvas = document.createElement("canvas");
+  const regions: ScanRegion[] = [
+    { left: bitmap.width * 0.04, top: bitmap.height * 0.27, width: bitmap.width * 0.92, height: bitmap.height * 0.4 },
+    { left: bitmap.width * 0.04, top: bitmap.height * 0.02, width: bitmap.width * 0.92, height: bitmap.height * 0.4 },
+    { left: bitmap.width * 0.04, top: bitmap.height * 0.58, width: bitmap.width * 0.92, height: bitmap.height * 0.4 },
+    { left: 0, top: 0, width: bitmap.width, height: bitmap.height },
+  ];
+
+  try {
+    for (let index = 0; index < regions.length; index += 1) {
+      onPass(index + 1, regions.length);
+      if (!drawEnhancedRegion(bitmap, bitmap.width, bitmap.height, canvas, regions[index])) {
+        continue;
+      }
+      const result = await worker.recognize(canvas);
+      const candidate = extractExpiryCandidates(result.data.text)[0];
+      if (candidate) return candidate;
+    }
+    return null;
+  } finally {
+    bitmap.close();
+  }
+}
+
 export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<OcrWorker | null>(null);
@@ -125,8 +202,9 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
         }
 
         const video = videoRef.current;
+        const frame = frameRef.current;
         const canvas = canvasRef.current;
-        if (!video || !canvas || !captureScanBand(video, canvas)) {
+        if (!video || !frame || !canvas || !captureScanBand(video, frame, canvas)) {
           await wait(250);
           continue;
         }
@@ -198,7 +276,9 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
         workerRef.current = worker;
         await worker.setParameters({
           tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
+          tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-./: ",
           preserve_interword_spaces: "1",
+          user_defined_dpi: "300",
         });
         return worker;
       }
@@ -231,8 +311,8 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
           audio: false,
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { ideal: 2560 },
+            height: { ideal: 1440 },
           },
         });
         window.clearTimeout(permissionTimer);
@@ -242,6 +322,17 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
         }
         streamRef.current = stream;
         cameraStarted = true;
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack?.getCapabilities) {
+          const capabilities = videoTrack.getCapabilities() as MediaTrackCapabilities & {
+            focusMode?: string[];
+          };
+          if (capabilities.focusMode?.includes("continuous")) {
+            await videoTrack.applyConstraints({
+              advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet],
+            }).catch(() => undefined);
+          }
+        }
         const video = videoRef.current;
         if (!video) return;
         video.srcObject = stream;
@@ -296,12 +387,13 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
     try {
       const worker = await workerPromiseRef.current;
       if (!worker) throw new Error("OCR unavailable");
-      const result = await worker.recognize(file);
-      const detected = extractExpiryCandidates(result.data.text)[0];
+      const detected = await recognizePhotoDate(worker, file, (pass, total) => {
+        setStatusText(`Checking photo area ${pass} of ${total}…`);
+      });
       if (!detected) {
         setScannerState("error");
         setStatusText(
-          "No clear expiry date was found in that photo. Move closer, improve the lighting, and try another photo.",
+          "No clear expiry date was found. Move closer until the stamp is sharp, avoid glare, and try again.",
         );
         return;
       }
@@ -364,8 +456,8 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
 
         <div className="scanner-camera">
           <video ref={videoRef} muted playsInline autoPlay aria-label="Live camera preview" />
-          <div className="scanner-frame" aria-hidden="true">
-            <span>Keep the printed date inside this band</span>
+          <div ref={frameRef} className="scanner-frame" aria-hidden="true">
+            <span>Fill this band with the printed date</span>
           </div>
           <div className={`scanner-status ${scannerState}`} aria-live="polite">
             <span />
@@ -430,7 +522,7 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
               <p>
                 {scannerState === "error"
                   ? statusText
-                  : "Move slowly. A date locks after it is read twice; then name the product and continue without closing the camera."}
+                  : "Move close enough that the stamp is sharp, avoid glare, and hold still for 1–2 seconds. The date locks after it is read twice."}
               </p>
             </div>
             <div className="scanner-fallback-actions">
