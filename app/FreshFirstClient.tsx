@@ -231,7 +231,7 @@ export function FreshFirstClient() {
         </a>
         <nav className="top-actions" aria-label="Views">
           <a href="#fridge">Manage</a>
-          <Link href="/display">Fridge display <span aria-hidden="true">↗</span></Link>
+          <Link href="/display">Display <span aria-hidden="true">↗</span></Link>
         </nav>
       </header>
 
