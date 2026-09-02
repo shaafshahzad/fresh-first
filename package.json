@@ -7,14 +7,18 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:mobile": "next dev --hostname $(ipconfig getifaddr en0) --experimental-https",
     "build": "next build",
     "start": "next start",
     "test": "tsx --test tests/*.test.ts",
     "lint": "eslint .",
-    "db:migrate": "node --env-file=.env.local --import tsx db/migrate.ts"
+    "db:migrate": "node --env-file=.env.local --import tsx db/migrate.ts",
+    "db:seed:mock": "node --env-file=.env.local --import tsx db/seed-mock.ts"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "^4.0.73",
     "@neondatabase/serverless": "^1.0.2",
+    "ai": "^7.0.91",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",

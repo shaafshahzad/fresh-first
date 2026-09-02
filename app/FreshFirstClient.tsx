@@ -10,10 +10,9 @@ import {
 } from "react";
 import { parseQuickItems, type QuickItem } from "../lib/quick-add";
 import {
-  daysUntilCalendarDate,
   formatCalendarDate,
 } from "../lib/calendar-date";
-import { ExpiryScanner } from "./ExpiryScanner";
+import { expiryPresentation } from "../lib/expiry-urgency";
 
 type FridgeItem = {
   id: number;
@@ -22,20 +21,59 @@ type FridgeItem = {
   createdAt: string;
 };
 
-type SpeechRecognitionLike = {
-  lang: string;
-  interimResults: boolean;
-  maxAlternatives: number;
-  onstart: (() => void) | null;
-  onend: (() => void) | null;
-  onnomatch: (() => void) | null;
-  onresult: ((event: {
-    results: ArrayLike<ArrayLike<{ transcript: string }>>;
-  }) => void) | null;
-  onerror: ((event: { error?: string }) => void) | null;
-  start: () => void;
-  abort: () => void;
-};
+type VoiceState = "idle" | "starting" | "listening" | "stopping";
+
+const VOICE_STATE_COPY: Array<{
+  action: string;
+  detail: string;
+  state: VoiceState;
+  title: string;
+}> = [
+  {
+    action: "Start",
+    detail: "One tap. Pause between each item.",
+    state: "idle",
+    title: "Start speaking",
+  },
+  {
+    action: "…",
+    detail: "Just a moment…",
+    state: "starting",
+    title: "Opening the microphone",
+  },
+  {
+    action: "Stop",
+    detail: "Say an item and date, then pause.",
+    state: "listening",
+    title: "Listening continuously",
+  },
+  {
+    action: "…",
+    detail: "Just a moment…",
+    state: "stopping",
+    title: "Finishing the last item",
+  },
+];
+
+const SPEECH_PAUSE_MS = 900;
+const MAX_UTTERANCE_MS = 15_000;
+const MAX_SILENT_SEGMENT_MS = 20_000;
+
+function supportedRecordingType() {
+  if (typeof MediaRecorder === "undefined") return "";
+  return [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+  ].find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+}
+
+function recordingExtension(type: string) {
+  if (type.includes("mp4")) return "m4a";
+  if (type.includes("ogg")) return "ogg";
+  return "webm";
+}
 
 function localIsoDate(offsetDays = 0) {
   const date = new Date();
@@ -48,33 +86,11 @@ function localIsoDate(offsetDays = 0) {
   ].join("-");
 }
 
-function daysUntil(dateString: string) {
-  return daysUntilCalendarDate(dateString);
-}
-
-function timingLabel(dateString: string) {
-  const days = daysUntil(dateString);
-  if (days === null) return "Expiry date unavailable";
-  if (days < -1) return `Expired ${Math.abs(days)} days ago`;
-  if (days === -1) return "Expired yesterday";
-  if (days === 0) return "Expires today";
-  if (days === 1) return "Expires tomorrow";
-  return `Expires in ${days} days`;
-}
-
-function toneFor(dateString: string) {
-  const days = daysUntil(dateString);
-  if (days === null) return "later";
-  if (days < 0) return "expired";
-  if (days === 0) return "urgent";
-  if (days <= 2) return "soon";
-  return "later";
-}
-
 function displayDate(dateString: string) {
   return formatCalendarDate(dateString, {
     month: "short",
     day: "numeric",
+    year: "numeric",
   });
 }
 
@@ -95,13 +111,25 @@ export function FreshFirstClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
-  const [scannerOpen, setScannerOpen] = useState(false);
-  const [voiceState, setVoiceState] = useState<"idle" | "starting" | "listening">("idle");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editExpiresOn, setEditExpiresOn] = useState("");
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [pendingTranscriptions, setPendingTranscriptions] = useState(0);
   const [captureNotice, setCaptureNotice] = useState("");
   const [error, setError] = useState("");
   const nameInput = useRef<HTMLInputElement>(null);
   const quickInput = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const microphoneRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const vadTimerRef = useRef<number | null>(null);
+  const finishSegmentRef = useRef<((transcribe: boolean) => void) | null>(null);
+  const voiceAttemptRef = useRef(0);
+  const voiceSessionRequestedRef = useRef(false);
+  const speechStartedAtRef = useRef(0);
+  const transcriptionQueueRef = useRef<Promise<void>>(Promise.resolve());
   const quickParse = useMemo(() => parseQuickItems(quickText), [quickText]);
 
   useEffect(() => {
@@ -132,7 +160,18 @@ export function FreshFirstClient() {
 
   useEffect(
     () => () => {
-      recognitionRef.current?.abort();
+      voiceSessionRequestedRef.current = false;
+      voiceAttemptRef.current += 1;
+      if (vadTimerRef.current !== null) window.clearInterval(vadTimerRef.current);
+      finishSegmentRef.current = null;
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.ondataavailable = null;
+        recorder.onstop = null;
+        recorder.stop();
+      }
+      microphoneRef.current?.getTracks().forEach((track) => track.stop());
+      void audioContextRef.current?.close();
     },
     [],
   );
@@ -189,78 +228,276 @@ export function FreshFirstClient() {
     }
   }
 
-  function startDictation() {
-    if (voiceState !== "idle") {
-      recognitionRef.current?.abort();
-      recognitionRef.current = null;
+  function queueTranscription(audio: Blob) {
+    setPendingTranscriptions((count) => count + 1);
+    transcriptionQueueRef.current = transcriptionQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          const formData = new FormData();
+          formData.append(
+            "audio",
+            audio,
+            `grocery.${recordingExtension(audio.type)}`,
+          );
+          const response = await fetch("/api/transcribe", {
+            method: "POST",
+            body: formData,
+            signal: AbortSignal.timeout(45_000),
+          });
+          const body = await response.json() as { text?: string; error?: string };
+          if (!response.ok) throw new Error(body.error ?? "Transcription failed");
+
+          const transcript = body.text?.trim();
+          if (!transcript) {
+            setCaptureNotice(
+              voiceSessionRequestedRef.current
+                ? "I didn’t hear a complete item that time. Keep going and say it again."
+                : "The last phrase was silent or unclear. You can type it below.",
+            );
+            return;
+          }
+
+          setQuickText((current) => current ? `${current}\n${transcript}` : transcript);
+          setCaptureNotice(
+            voiceSessionRequestedRef.current
+              ? `Captured: “${transcript}” Keep speaking when you’re ready.`
+              : `Captured: “${transcript}” Review it below, then add it to your fridge.`,
+          );
+        } catch (caught) {
+          const message = caught instanceof Error ? caught.message : "Transcription failed";
+          setCaptureNotice(
+            `${message}. Your voice session can stay open; say that item again or type it below.`,
+          );
+        } finally {
+          setPendingTranscriptions((count) => Math.max(0, count - 1));
+        }
+      });
+  }
+
+  function stopVoiceHardware() {
+    if (vadTimerRef.current !== null) {
+      window.clearInterval(vadTimerRef.current);
+      vadTimerRef.current = null;
+    }
+    finishSegmentRef.current = null;
+    microphoneRef.current?.getTracks().forEach((track) => track.stop());
+    microphoneRef.current = null;
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
+    recorderRef.current = null;
+  }
+
+  function beginRecordingSegment(
+    attempt: number,
+    microphone: MediaStream,
+    analyser: AnalyserNode,
+  ) {
+    if (
+      voiceAttemptRef.current !== attempt ||
+      !voiceSessionRequestedRef.current
+    ) {
+      stopVoiceHardware();
       setVoiceState("idle");
-      setCaptureNotice("Voice capture stopped.");
       return;
     }
 
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: new () => SpeechRecognitionLike;
-      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-    };
-    const Recognition =
-      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    const type = supportedRecordingType();
+    const chunks: Blob[] = [];
+    const recorder = type
+      ? new MediaRecorder(microphone, { mimeType: type, audioBitsPerSecond: 64_000 })
+      : new MediaRecorder(microphone, { audioBitsPerSecond: 64_000 });
+    const segmentStartedAt = Date.now();
+    let lastLoudAt = 0;
+    let noiseFloor = 0.006;
+    let shouldTranscribe = false;
+    let finishing = false;
+    const levels = new Float32Array(analyser.fftSize);
 
-    if (!Recognition) {
-      setCaptureNotice(
-        "This browser does not provide speech recognition. Open Fresh First directly in Chrome, Edge, or Safari—or tap the text box and use your phone keyboard’s microphone.",
-      );
+    recorderRef.current = recorder;
+    speechStartedAtRef.current = 0;
+    recorder.ondataavailable = (event) => {
+      if (event.data.size) chunks.push(event.data);
+    };
+    recorder.onerror = () => {
+      voiceSessionRequestedRef.current = false;
+      setVoiceState("idle");
+      setCaptureNotice("The browser stopped recording unexpectedly. Check microphone access and try again.");
+      stopVoiceHardware();
+    };
+    recorder.onstop = () => {
+      if (vadTimerRef.current !== null) {
+        window.clearInterval(vadTimerRef.current);
+        vadTimerRef.current = null;
+      }
+      if (shouldTranscribe && chunks.length) {
+        const audio = new Blob(chunks, { type: recorder.mimeType || type });
+        if (audio.size > 1_000) queueTranscription(audio);
+      }
+
+      if (
+        voiceAttemptRef.current === attempt &&
+        voiceSessionRequestedRef.current &&
+        microphone.active
+      ) {
+        window.setTimeout(
+          () => beginRecordingSegment(attempt, microphone, analyser),
+          40,
+        );
+      } else {
+        stopVoiceHardware();
+        setVoiceState("idle");
+      }
+    };
+
+    function finishSegment(transcribe: boolean) {
+      if (finishing) return;
+      finishing = true;
+      shouldTranscribe = transcribe;
+      if (vadTimerRef.current !== null) {
+        window.clearInterval(vadTimerRef.current);
+        vadTimerRef.current = null;
+      }
+      if (recorder.state !== "inactive") recorder.stop();
+    }
+
+    finishSegmentRef.current = finishSegment;
+    recorder.start();
+    setVoiceState("listening");
+    setCaptureNotice("Listening continuously—say one product and expiry date, pause, then say the next.");
+
+    vadTimerRef.current = window.setInterval(() => {
+      if (
+        voiceAttemptRef.current !== attempt ||
+        !voiceSessionRequestedRef.current ||
+        recorder.state !== "recording"
+      ) {
+        return;
+      }
+
+      analyser.getFloatTimeDomainData(levels);
+      let sum = 0;
+      for (const level of levels) sum += level * level;
+      const rms = Math.sqrt(sum / levels.length);
+      const now = Date.now();
+
+      if (!speechStartedAtRef.current) {
+        noiseFloor = noiseFloor * 0.92 + rms * 0.08;
+      }
+      const speechThreshold = Math.max(0.012, Math.min(0.04, noiseFloor * 2.8));
+
+      if (rms >= speechThreshold) {
+        lastLoudAt = now;
+        if (!speechStartedAtRef.current) {
+          speechStartedAtRef.current = now;
+          setCaptureNotice("I hear you—finish the item, then pause briefly.");
+        }
+      }
+
+      if (
+        speechStartedAtRef.current &&
+        lastLoudAt &&
+        now - lastLoudAt >= SPEECH_PAUSE_MS
+      ) {
+        setCaptureNotice("Transcribing that item—keep going when the listener returns.");
+        finishSegment(true);
+      } else if (
+        speechStartedAtRef.current &&
+        now - speechStartedAtRef.current >= MAX_UTTERANCE_MS
+      ) {
+        setCaptureNotice("Transcribing this longer phrase now…");
+        finishSegment(true);
+      } else if (
+        !speechStartedAtRef.current &&
+        now - segmentStartedAt >= MAX_SILENT_SEGMENT_MS
+      ) {
+        finishSegment(false);
+      }
+    }, 90);
+  }
+
+  async function startDictation() {
+    if (voiceState === "stopping") return;
+    if (voiceState !== "idle") {
+      voiceSessionRequestedRef.current = false;
+      voiceAttemptRef.current += 1;
+      setVoiceState("stopping");
+      setCaptureNotice("Stopping the voice session and finishing the last phrase…");
+      const finishSegment = finishSegmentRef.current;
+      if (finishSegment) {
+        finishSegment(Boolean(speechStartedAtRef.current));
+      } else {
+        stopVoiceHardware();
+        setVoiceState("idle");
+      }
+      return;
+    }
+
+    const attempt = voiceAttemptRef.current + 1;
+    voiceAttemptRef.current = attempt;
+    voiceSessionRequestedRef.current = true;
+    setVoiceState("starting");
+    setCaptureNotice("Requesting microphone access…");
+
+    if (
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === "undefined"
+    ) {
+      voiceSessionRequestedRef.current = false;
+      setVoiceState("idle");
+      setCaptureNotice("This browser cannot record microphone audio. Update the browser or type the items below.");
       quickInput.current?.focus();
       return;
     }
 
-    const recognition = new Recognition();
-    recognitionRef.current = recognition;
-    setVoiceState("starting");
-    setCaptureNotice("Requesting microphone access…");
-    recognition.lang = "en-CA";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    const startTimer = window.setTimeout(() => {
-      if (recognitionRef.current !== recognition) return;
-      recognition.abort();
-      setCaptureNotice(
-        "The microphone did not start. Check for a permission prompt, or open Fresh First directly in Chrome, Edge, or Safari.",
-      );
-    }, 10_000);
-    recognition.onstart = () => {
-      window.clearTimeout(startTimer);
-      setVoiceState("listening");
-      setCaptureNotice("Listening… Say the product and date, for example “Milk tomorrow.”");
-    };
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript?.trim();
-      if (!transcript) return;
-      setQuickText((current) => current ? `${current}\n${transcript}` : transcript);
-      setCaptureNotice(`Heard: “${transcript}”`);
-    };
-    recognition.onnomatch = () => {
-      setCaptureNotice("I couldn’t make that out. Tap Speak and try again a little closer to the microphone.");
-    };
-    recognition.onerror = (event) => {
-      window.clearTimeout(startTimer);
-      const permissionBlocked = event.error === "not-allowed" || event.error === "service-not-allowed";
+    try {
+      const microphone = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+        video: false,
+      });
+      if (voiceAttemptRef.current !== attempt) {
+        microphone.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      const audioWindow = window as typeof window & {
+        webkitAudioContext?: typeof AudioContext;
+      };
+      const AudioContextApi = window.AudioContext ?? audioWindow.webkitAudioContext;
+      if (!AudioContextApi) throw new Error("Audio analysis is unavailable");
+
+      const audioContext = new AudioContextApi();
+      await audioContext.resume();
+      const source = audioContext.createMediaStreamSource(microphone);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.25;
+      source.connect(analyser);
+
+      microphoneRef.current = microphone;
+      audioContextRef.current = audioContext;
+      beginRecordingSegment(attempt, microphone, analyser);
+    } catch (caught) {
+      if (voiceAttemptRef.current !== attempt) return;
+      voiceSessionRequestedRef.current = false;
+      stopVoiceHardware();
+      setVoiceState("idle");
+      const permissionBlocked = caught instanceof DOMException &&
+        (caught.name === "NotAllowedError" || caught.name === "SecurityError");
+      const microphoneMissing = caught instanceof DOMException &&
+        (caught.name === "NotFoundError" || caught.name === "DevicesNotFoundError");
       setCaptureNotice(
         permissionBlocked
-          ? "Microphone access was blocked. Allow microphone access for this site, then tap Speak again."
-          : "Voice recognition stopped before it heard an item. Tap Speak to retry, or use your keyboard microphone.",
+          ? "Microphone access was blocked. Allow it for this site in browser settings, then start speaking again."
+          : microphoneMissing
+            ? "No microphone was found. Connect or enable one, then try again."
+            : "The microphone could not start. Close other apps using it, then try again.",
       );
-    };
-    recognition.onend = () => {
-      window.clearTimeout(startTimer);
-      recognitionRef.current = null;
-      setVoiceState("idle");
-    };
-    try {
-      recognition.start();
-    } catch {
-      recognitionRef.current = null;
-      setVoiceState("idle");
-      setCaptureNotice("Voice recognition could not start. Check microphone permission and try again.");
     }
   }
 
@@ -284,66 +521,143 @@ export function FreshFirstClient() {
     }
   }
 
+  function beginEditing(item: FridgeItem) {
+    setEditingId(item.id);
+    setEditName(item.name);
+    setEditExpiresOn(item.expiresOn);
+    setError("");
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setEditName("");
+    setEditExpiresOn("");
+  }
+
+  async function updateItem(
+    event: FormEvent<HTMLFormElement>,
+    item: FridgeItem,
+  ) {
+    event.preventDefault();
+    if (!editName.trim() || !editExpiresOn || updatingId !== null) return;
+
+    setUpdatingId(item.id);
+    setError("");
+    try {
+      const response = await fetch(`/api/items?id=${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName, expiresOn: editExpiresOn }),
+      });
+      const body = await response.json() as {
+        item?: FridgeItem;
+        error?: string;
+      };
+      if (!response.ok || !body.item) {
+        throw new Error(body.error ?? "Unable to update item");
+      }
+
+      setItems((current) => sorted(
+        current.map((candidate) => candidate.id === item.id ? body.item! : candidate),
+      ));
+      cancelEditing();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to update item.");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
   return (
-    <main className="app-shell" id="top">
+    <main className="app-shell" id="main-content">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="Fresh First home">
+        <a className="brand" href="#main-content" aria-label="Fresh First home">
           <span className="brand-mark" aria-hidden="true">F</span>
           <span>Fresh First</span>
         </a>
         <nav className="top-actions" aria-label="Views">
-          <a href="#fridge">Manage</a>
-          <Link href="/display">Display <span aria-hidden="true">↗</span></Link>
+          <a href="#fridge">
+            Fridge
+            <span className="top-count" aria-label={`${items.length} active items`}>
+              {loading ? "—" : items.length}
+            </span>
+          </a>
+          <Link href="/display">Fridge display <span aria-hidden="true">↗</span></Link>
         </nav>
       </header>
 
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Say it. Type it. Done.</p>
-          <h1>What should you use next?</h1>
+          <p className="eyebrow">Your fridge, in the right order</p>
+          <h1>Use what’s fresh, first.</h1>
           <p className="lede">
-            Add groceries the way you naturally think: “Milk tomorrow” or “Bread Sep 4.” One item per line, as many as you like.
+            Say what you bought and when it expires. We’ll keep the shortest dates at the top, where you can actually use them.
           </p>
+          <a className="hero-jump" href="#fridge">
+            See what’s next <span aria-hidden="true">↓</span>
+          </a>
         </div>
 
         <div className="capture-stack">
           <form className="add-card quick-card" onSubmit={addQuickItems}>
             <div className="form-heading">
               <div>
-                <p className="eyebrow">Quick capture</p>
-                <h2>What did you put away?</h2>
-              </div>
-              <div className="capture-actions">
-                <button
-                  className="scan-button"
-                  type="button"
-                  onClick={() => setScannerOpen(true)}
-                  aria-label="Start a passive expiry date scan session"
-                >
-                  <span aria-hidden="true">▣</span> Scan dates
-                </button>
-                <button
-                  className={`voice-button ${voiceState}`}
-                  type="button"
-                  onClick={startDictation}
-                  aria-label="Add an item by voice"
-                  aria-pressed={voiceState === "listening"}
-                >
-                  <span aria-hidden="true">●</span>{" "}
-                  {voiceState === "listening"
-                    ? "Stop listening"
-                    : voiceState === "starting"
-                      ? "Starting…"
-                      : "Speak"}
-                </button>
+                <p className="eyebrow">Quick add</p>
+                <h2>Add groceries as you unpack.</h2>
               </div>
             </div>
+
+            <button
+              className={`voice-button ${voiceState}`}
+              type="button"
+              onClick={() => void startDictation()}
+              aria-label={voiceState === "idle" ? "Start continuous voice session" : "Stop continuous voice session"}
+              aria-pressed={voiceState !== "idle"}
+            >
+              <span className="voice-symbol" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span className="voice-copy" aria-live="polite">
+                {VOICE_STATE_COPY.map((copy) => (
+                  <span
+                    className={`voice-copy-state ${copy.state}`}
+                    aria-hidden={voiceState !== copy.state}
+                    key={copy.state}
+                  >
+                    <strong>{copy.title}</strong>
+                    <small>{copy.detail}</small>
+                  </span>
+                ))}
+              </span>
+              <span className="voice-action" aria-hidden="true">
+                {VOICE_STATE_COPY.map((copy) => (
+                  <span
+                    className={`voice-action-state ${copy.state}`}
+                    key={copy.state}
+                  >
+                    {copy.action}
+                  </span>
+                ))}
+              </span>
+            </button>
+
             {captureNotice ? (
-              <p className="capture-notice" role="status">{captureNotice}</p>
+              <p className="capture-notice" role="status">
+                {captureNotice}
+                {pendingTranscriptions > 0
+                  ? ` ${pendingTranscriptions} phrase${pendingTranscriptions === 1 ? "" : "s"} queued.`
+                  : ""}
+              </p>
             ) : null}
-            <label className="capture-label">
-              <span className="sr-only">Items and expiry dates</span>
+            <div className="capture-label">
+              <span className="capture-label-row">
+                <label htmlFor="quick-entry">Or type your list</label>
+                <small>One item per line</small>
+              </span>
               <textarea
+                id="quick-entry"
                 ref={quickInput}
                 value={quickText}
                 onChange={(event) => setQuickText(event.target.value)}
@@ -352,24 +666,26 @@ export function FreshFirstClient() {
                 autoCapitalize="sentences"
                 spellCheck
               />
-            </label>
+            </div>
 
             {quickText ? (
               <div className="parse-preview" aria-live="polite">
                 {quickParse.items.map((item) => (
                   <span className="parsed-item" key={item.source}>
-                    <strong>{item.name}</strong> · {displayDate(item.expiresOn)}
+                    <span aria-hidden="true">✓</span>
+                    <strong>{item.name}</strong>
+                    <time dateTime={item.expiresOn}>{displayDate(item.expiresOn)}</time>
                   </span>
                 ))}
                 {quickParse.errors.map((item) => (
                   <span className="parse-error" key={item.line}>
-                    Couldn’t read “{item.line}”
+                    <span aria-hidden="true">?</span> Couldn’t read “{item.line}”
                   </span>
                 ))}
               </div>
             ) : (
               <div className="example-row">
-                <span>Try</span>
+                <span>Try:</span>
                 {["Milk tomorrow", "Bread Sep 4", "Leftovers +3 days"].map(
                   (example) => (
                     <button
@@ -385,6 +701,7 @@ export function FreshFirstClient() {
             )}
 
             <button
+              className="quick-submit"
               type="submit"
               disabled={
                 saving ||
@@ -397,12 +714,12 @@ export function FreshFirstClient() {
                 : quickParse.items.length > 1
                   ? `Add ${quickParse.items.length} items`
                   : "Add to fridge"}
-              <span aria-hidden="true">→</span>
+              <span aria-hidden="true">↗</span>
             </button>
           </form>
 
           <details className="exact-entry">
-            <summary>Prefer exact fields?</summary>
+            <summary>Enter a name and exact date instead</summary>
             <form onSubmit={addExactItem}>
               <label>
                 Product name
@@ -462,71 +779,162 @@ export function FreshFirstClient() {
       >
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Your fridge</p>
+            <p className="eyebrow">Fridge queue</p>
             <h2 id="fridge-heading">
               {loading
-                ? "Checking your fridge…"
+                ? "Checking what’s next…"
                 : items.length === 0
-                  ? "Your fridge list is clear"
-                  : `${items.length} ${items.length === 1 ? "item" : "items"} to keep an eye on`}
+                  ? "Nothing waiting"
+                  : "Use these next"}
             </h2>
           </div>
-          <p>Sorted by expiry</p>
+          <p>
+            {loading
+              ? "Loading your list"
+              : `${items.length} ${items.length === 1 ? "item" : "items"} · soonest first`}
+          </p>
         </div>
 
         {error ? <p className="error-banner" role="alert">{error}</p> : null}
 
-        {!loading && items.length === 0 ? (
+        {loading ? (
+          <div className="item-list loading-list" aria-label="Loading fridge items">
+            {[0, 1, 2].map((index) => (
+              <div className="food-item skeleton-item" key={index} aria-hidden="true">
+                <span />
+                <div><i /><i /></div>
+                <span />
+              </div>
+            ))}
+          </div>
+        ) : items.length === 0 ? (
           <div className="empty-state">
-            <span aria-hidden="true">01</span>
+            <span aria-hidden="true">✓</span>
             <div>
-              <h3>Capture your first item above.</h3>
-              <p>It will appear here—and on the fridge display—ordered by expiry.</p>
+              <h3>Your fridge list is clear.</h3>
+              <p>Add your first item above. It will land here in expiry order.</p>
             </div>
           </div>
         ) : (
           <div className="item-list" aria-live="polite">
-            {items.map((item, index) => (
-              <article
-                className={`food-item ${toneFor(item.expiresOn)}`}
-                key={item.id}
-              >
-                <span className="item-number">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <div className="item-name">
-                  <h3>{item.name}</h3>
-                  <p>{timingLabel(item.expiresOn)}</p>
-                </div>
-                <time dateTime={item.expiresOn}>
-                  {displayDate(item.expiresOn)}
-                </time>
-                <button
-                  type="button"
-                  onClick={() => void removeItem(item)}
-                  disabled={removingId === item.id}
-                  aria-label={`Mark ${item.name} as used`}
+            {items.map((item, index) => {
+              const expiry = expiryPresentation(item.expiresOn);
+              return (
+                <article
+                  className={`food-item ${expiry.tone}${editingId === item.id ? " editing" : ""}`}
+                  key={item.id}
                 >
-                  {removingId === item.id ? "…" : "Used"}
-                </button>
-              </article>
-            ))}
+                  <span className="item-number">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  {editingId === item.id ? (
+                    <form
+                      className="item-edit-form"
+                      onSubmit={(event) => void updateItem(event, item)}
+                    >
+                    <label>
+                      <span>Product name</span>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(event) => setEditName(event.target.value)}
+                        maxLength={80}
+                        autoComplete="off"
+                        required
+                      />
+                    </label>
+                    <label>
+                      <span>Expiry date</span>
+                      <input
+                        type="date"
+                        value={editExpiresOn}
+                        onChange={(event) => setEditExpiresOn(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <div className="item-edit-actions">
+                      <button
+                        type="button"
+                        onClick={cancelEditing}
+                        disabled={updatingId === item.id}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={
+                          updatingId === item.id ||
+                          !editName.trim() ||
+                          !editExpiresOn
+                        }
+                      >
+                        {updatingId === item.id ? "Saving…" : "Save"}
+                      </button>
+                    </div>
+                    </form>
+                  ) : (
+                    <>
+                    <div className="item-name">
+                      <h3>{item.name}</h3>
+                      <div className="item-status-line">
+                        <p>{expiry.timing}</p>
+                        {expiry.marker ? (
+                          <span className={`expiry-marker ${expiry.tone}`}>
+                            {expiry.marker}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <time dateTime={item.expiresOn}>
+                      {displayDate(item.expiresOn)}
+                    </time>
+                    <div className="item-actions">
+                      <button
+                        className="item-edit-button"
+                        type="button"
+                        onClick={() => beginEditing(item)}
+                        disabled={removingId !== null || updatingId !== null}
+                        aria-label={`Edit ${item.name}`}
+                        title="Edit item"
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 20 20">
+                          <path d="M4 13.8V16h2.2L15 7.2 12.8 5 4 13.8Z" />
+                          <path d="m11.8 6 2.2 2.2" />
+                        </svg>
+                      </button>
+                      <button
+                        className="item-used-button"
+                        type="button"
+                        onClick={() => void removeItem(item)}
+                        disabled={removingId === item.id || updatingId !== null}
+                        aria-label={`Mark ${item.name} as used`}
+                      >
+                        {removingId === item.id ? (
+                          "…"
+                        ) : (
+                          <>
+                            <svg aria-hidden="true" viewBox="0 0 20 20">
+                              <path d="m5 10.2 3.1 3.1L15.4 6" />
+                            </svg>
+                            <span>Used</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    </>
+                  )}
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
 
       <footer>
-        <p>Fresh First</p>
-        <p>Designed for a quieter, less wasteful fridge.</p>
+        <p><strong>Fresh First</strong> · A quieter way to waste less food.</p>
+        <Link href="/display">Open fridge display <span aria-hidden="true">↗</span></Link>
       </footer>
 
-      {scannerOpen ? (
-        <ExpiryScanner
-          open
-          onClose={() => setScannerOpen(false)}
-          onSave={(item) => saveItems([item])}
-        />
-      ) : null}
     </main>
   );
 }

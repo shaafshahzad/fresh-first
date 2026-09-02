@@ -36,3 +36,32 @@ test("parses several lines and isolates ambiguous input", () => {
   assert.equal(result.errors.length, 1);
   assert.equal(result.errors[0].line, "Mystery leftovers");
 });
+
+test("parses a continuous voice grocery session", () => {
+  const result = parseQuickItems(
+    [
+      "orange juice 27 October 2026.",
+      "cream cheese 2026 November 9th",
+      "Greek yogurts 2026 September 25th",
+    ].join("\n"),
+    now,
+  );
+
+  assert.deepEqual(
+    result.items.map(({ name, expiresOn }) => ({ name, expiresOn })),
+    [
+      { name: "orange juice", expiresOn: "2026-10-27" },
+      { name: "cream cheese", expiresOn: "2026-11-09" },
+      { name: "Greek yogurts", expiresOn: "2026-09-25" },
+    ],
+  );
+  assert.deepEqual(result.errors, []);
+});
+
+test("parses punctuation emitted by server-side transcription", () => {
+  assert.deepEqual(parseQuickLine("Cream cheese, 9 November 2026.", now), {
+    name: "Cream cheese",
+    expiresOn: "2026-11-09",
+    source: "Cream cheese, 9 November 2026",
+  });
+});
