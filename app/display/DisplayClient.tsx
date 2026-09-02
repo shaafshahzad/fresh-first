@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  daysUntilCalendarDate,
-  formatCalendarDate,
-} from "../../lib/calendar-date";
+import { formatCalendarDate } from "../../lib/calendar-date";
+import { expiryPresentation } from "../../lib/expiry-urgency";
 
 type FridgeItem = {
   id: number;
@@ -13,25 +11,12 @@ type FridgeItem = {
   expiresOn: string;
 };
 
-function daysUntil(dateString: string) {
-  return daysUntilCalendarDate(dateString);
-}
-
-function labelFor(dateString: string) {
-  const days = daysUntil(dateString);
-  if (days === null) return "Expiry date unavailable";
-  if (days < -1) return `Expired · ${Math.abs(days)} days ago`;
-  if (days === -1) return "Expired yesterday";
-  if (days === 0) return "Expires today";
-  if (days === 1) return "Expires tomorrow";
-  return `Expires in ${days} days`;
-}
-
 function dateFor(dateString: string) {
   return formatCalendarDate(dateString, {
     weekday: "short",
     month: "short",
     day: "numeric",
+    year: "numeric",
   });
 }
 
@@ -72,7 +57,7 @@ export function DisplayClient() {
   }, []);
 
   return (
-    <main className="display-shell">
+    <main className="display-shell" id="main-content">
       <header className="display-header">
         <div>
           <p className="display-kicker">Fresh First</p>
@@ -95,13 +80,20 @@ export function DisplayClient() {
       ) : (
         <section className="display-list" aria-label="Items sorted by expiry">
           {items.slice(0, 8).map((item, index) => {
-            const days = daysUntil(item.expiresOn);
+            const expiry = expiryPresentation(item.expiresOn);
             return (
-              <article className={days !== null && days < 0 ? "is-expired" : days !== null && days <= 1 ? "is-next" : ""} key={item.id}>
+              <article className={`is-${expiry.tone}`} key={item.id}>
                 <span className="display-index">{String(index + 1).padStart(2, "0")}</span>
                 <div>
                   <h2>{item.name}</h2>
-                  <p>{labelFor(item.expiresOn)}</p>
+                  <div className="display-status-line">
+                    <p>{expiry.timing}</p>
+                    {expiry.marker ? (
+                      <span className={`expiry-marker light ${expiry.tone}`}>
+                        {expiry.marker}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 <time dateTime={item.expiresOn}>{dateFor(item.expiresOn)}</time>
               </article>

@@ -107,6 +107,47 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  try {
+    const id = Number(new URL(request.url).searchParams.get("id"));
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return Response.json(
+        { error: "A valid item id is required." },
+        { status: 400 },
+      );
+    }
+
+    let input: { name: string; expiresOn: string };
+    try {
+      input = validateItem(await request.json() as ItemInput);
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : "Invalid item." },
+        { status: 400 },
+      );
+    }
+
+    const sql = getSql();
+    const rows = (await sql`
+      UPDATE fridge_items
+      SET name = ${input.name}, expires_on = ${input.expiresOn}
+      WHERE id = ${id} AND status = 'active'
+      RETURNING id, name, expires_on, created_at
+    `) as FridgeItemRow[];
+
+    if (rows.length === 0) {
+      return Response.json(
+        { error: "That item no longer exists." },
+        { status: 404 },
+      );
+    }
+
+    return Response.json({ item: toFridgeItem(rows[0]) });
+  } catch (error) {
+    return publicError(error);
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const id = Number(new URL(request.url).searchParams.get("id"));
