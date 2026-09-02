@@ -19,6 +19,9 @@ test("marks ambiguous numeric dates for review", () => {
 
 test("corrects common OCR substitutions in numeric dates", () => {
   assert.equal(extractExpiryCandidates("EXP 2O26-O9-O8", now)[0]?.isoDate, "2026-09-08");
+  assert.equal(extractExpiryCandidates("26 0C 27", now)[0]?.isoDate, "2026-10-27");
+  assert.equal(extractExpiryCandidates("2026 5E 25", now)[0]?.isoDate, "2026-09-25");
+  assert.equal(extractExpiryCandidates("2026 N0 09", now)[0]?.isoDate, "2026-11-09");
 });
 
 test("extracts standardized bilingual best-before month codes", () => {

@@ -82,10 +82,13 @@ function drawEnhancedRegion(
   return true;
 }
 
-function captureScanBand(
+const LIVE_SCAN_PASS_COUNT = 5;
+
+function captureScanPass(
   video: HTMLVideoElement,
   frame: HTMLDivElement,
   canvas: HTMLCanvasElement,
+  pass: number,
 ) {
   const sourceWidth = video.videoWidth;
   const sourceHeight = video.videoHeight;
@@ -95,18 +98,46 @@ function captureScanBand(
   const frameBounds = frame.getBoundingClientRect();
   if (!videoBounds.width || !videoBounds.height) return false;
 
-  // The preview uses object-fit: cover. Translate the visible guide rectangle
-  // back into source-camera pixels so mobile portrait video is not over-cropped.
+  // The preview uses object-fit: cover. Translate each visible scan region back
+  // into source-camera pixels so portrait mobile video is covered correctly.
   const scale = Math.max(
     videoBounds.width / sourceWidth,
     videoBounds.height / sourceHeight,
   );
   const hiddenX = (sourceWidth * scale - videoBounds.width) / 2;
   const hiddenY = (sourceHeight * scale - videoBounds.height) / 2;
-  const sourceX = (frameBounds.left - videoBounds.left + hiddenX) / scale;
-  const sourceY = (frameBounds.top - videoBounds.top + hiddenY) / scale;
-  const cropWidth = frameBounds.width / scale;
-  const cropHeight = frameBounds.height / scale;
+  const viewRegions: ScanRegion[] = [
+    {
+      left: frameBounds.left - videoBounds.left,
+      top: frameBounds.top - videoBounds.top,
+      width: frameBounds.width,
+      height: frameBounds.height,
+    },
+    {
+      left: videoBounds.width * 0.03,
+      top: videoBounds.height * 0.2,
+      width: videoBounds.width * 0.94,
+      height: videoBounds.height * 0.45,
+    },
+    {
+      left: videoBounds.width * 0.03,
+      top: videoBounds.height * 0.01,
+      width: videoBounds.width * 0.94,
+      height: videoBounds.height * 0.38,
+    },
+    {
+      left: videoBounds.width * 0.03,
+      top: videoBounds.height * 0.55,
+      width: videoBounds.width * 0.94,
+      height: videoBounds.height * 0.44,
+    },
+    { left: 0, top: 0, width: videoBounds.width, height: videoBounds.height },
+  ];
+  const viewRegion = viewRegions[pass % viewRegions.length];
+  const sourceX = (viewRegion.left + hiddenX) / scale;
+  const sourceY = (viewRegion.top + hiddenY) / scale;
+  const cropWidth = viewRegion.width / scale;
+  const cropHeight = viewRegion.height / scale;
 
   return drawEnhancedRegion(
     video,
@@ -158,9 +189,10 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
   const candidateRef = useRef<ExpiryCandidate | null>(null);
   const lockedDateRef = useRef<string | null>(null);
   const blockedDateRef = useRef<string | null>(null);
+  const blockedAtRef = useRef(0);
   const lastSeenRef = useRef("");
+  const lastSeenAtRef = useRef(0);
   const seenCountRef = useRef(0);
-  const clearCountRef = useRef(0);
   const [scannerState, setScannerState] = useState<ScannerState>("loading");
   const [statusText, setStatusText] = useState("Starting camera…");
   const [progress, setProgress] = useState(0);
@@ -195,6 +227,9 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
     let permissionTimer: number | undefined;
 
     async function scanLoop(worker: OcrWorker) {
+      let scanPass = 0;
+      let emptyPasses = 0;
+
       while (!cancelled) {
         if (candidateRef.current) {
           await wait(250);
@@ -204,58 +239,75 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
         const video = videoRef.current;
         const frame = frameRef.current;
         const canvas = canvasRef.current;
-        if (!video || !frame || !canvas || !captureScanBand(video, frame, canvas)) {
+        if (
+          !video ||
+          !frame ||
+          !canvas ||
+          !captureScanPass(video, frame, canvas, scanPass)
+        ) {
           await wait(250);
           continue;
         }
+        scanPass = (scanPass + 1) % LIVE_SCAN_PASS_COUNT;
 
         setScannerState("scanning");
-        setStatusText("Reading the date band…");
         try {
           const result = await worker.recognize(canvas);
           if (cancelled) return;
           const topCandidate = extractExpiryCandidates(result.data.text)[0];
 
           if (!topCandidate) {
-            lastSeenRef.current = "";
-            seenCountRef.current = 0;
-            if (blockedDateRef.current) {
-              clearCountRef.current += 1;
-              if (clearCountRef.current >= 2) blockedDateRef.current = null;
+            emptyPasses += 1;
+            if (Date.now() - lastSeenAtRef.current > 12_000) {
+              lastSeenRef.current = "";
+              seenCountRef.current = 0;
             }
-            setStatusText("Looking for a printed expiry date…");
-            await wait(450);
+            if (emptyPasses === LIVE_SCAN_PASS_COUNT * 2) {
+              setStatusText(
+                "No date yet—move closer, avoid glare, and keep the date anywhere in view.",
+              );
+            }
+            await wait(250);
             continue;
           }
 
-          if (topCandidate.isoDate === blockedDateRef.current) {
-            clearCountRef.current = 0;
+          emptyPasses = 0;
+          const now = Date.now();
+          if (
+            topCandidate.isoDate === blockedDateRef.current &&
+            now - blockedAtRef.current < 8_000
+          ) {
             setStatusText("Move to the next product…");
-            await wait(450);
+            await wait(250);
             continue;
           }
 
           blockedDateRef.current = null;
-          clearCountRef.current = 0;
-          if (lastSeenRef.current === topCandidate.isoDate) {
+          if (
+            lastSeenRef.current === topCandidate.isoDate &&
+            now - lastSeenAtRef.current < 12_000
+          ) {
             seenCountRef.current += 1;
           } else {
             lastSeenRef.current = topCandidate.isoDate;
             seenCountRef.current = 1;
           }
+          lastSeenAtRef.current = now;
 
-          if (seenCountRef.current >= 2) {
+          if (topCandidate.confidence === "high" || seenCountRef.current >= 2) {
             lockedDateRef.current = topCandidate.isoDate;
             setCandidate(topCandidate);
             setScannerState("reviewing");
             setStatusText("Date locked");
           } else {
-            setStatusText("Hold steady—checking that date…");
+            setStatusText("Possible date found—hold steady for one more read…");
           }
         } catch {
-          if (!cancelled) setStatusText("Couldn’t read that angle. Keep moving slowly…");
+          if (!cancelled && emptyPasses >= LIVE_SCAN_PASS_COUNT * 2) {
+            setStatusText("Still scanning—try a sharper angle with less glare.");
+          }
         }
-        await wait(450);
+        await wait(250);
       }
     }
 
@@ -341,7 +393,7 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
         const worker = await workerPromise;
         setProgress(100);
         setScannerState("scanning");
-        setStatusText("Looking for a printed expiry date…");
+        setStatusText("Scanning the full camera view—hold steady…");
         await scanLoop(worker);
       } catch (error) {
         if (permissionTimer) window.clearTimeout(permissionTimer);
@@ -410,13 +462,14 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
 
   function dismissCandidate() {
     blockedDateRef.current = lockedDateRef.current;
-    clearCountRef.current = 0;
+    blockedAtRef.current = Date.now();
     lastSeenRef.current = "";
+    lastSeenAtRef.current = 0;
     seenCountRef.current = 0;
     setCandidate(null);
     setProductName("");
     setScannerState("scanning");
-    setStatusText("Move to another date, then keep scanning…");
+    setStatusText("Scanning the full camera view—show the next product…");
   }
 
   async function addDetectedItem(event: FormEvent<HTMLFormElement>) {
@@ -456,7 +509,7 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
         <div className="scanner-camera">
           <video ref={videoRef} muted playsInline autoPlay aria-label="Live camera preview" />
           <div ref={frameRef} className="scanner-frame" aria-hidden="true">
-            <span>Fill this band with the printed date</span>
+            <span>Date can be anywhere in view—this area scans first</span>
           </div>
           <div className={`scanner-status ${scannerState}`} aria-live="polite">
             <span />
@@ -521,7 +574,7 @@ export function ExpiryScanner({ open, onClose, onSave }: ScannerProps) {
               <p>
                 {scannerState === "error"
                   ? statusText
-                  : "Move close enough that the stamp is sharp, avoid glare, and hold still for 1–2 seconds. The date locks after it is read twice."}
+                  : "Keep the full package visible and the stamp sharp. Explicit dates lock immediately; ambiguous formats get a second check."}
               </p>
             </div>
             <div className="scanner-fallback-actions">

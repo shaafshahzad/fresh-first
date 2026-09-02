@@ -13,9 +13,9 @@ const MONTH_ALIASES: string[][] = [
   ["JN", "JUN", "JUNE", "JUIN", "JUNIO", "JUNHO", "GIU", "GIUGNO", "JUNI", "CZE", "CZERWIEC", "HAZIRAN", "ИЮН", "ИЮНЬ", "ΙΟΥΝ", "ΙΟΥΝΙΟΣ", "יוני", "يونيو"],
   ["JL", "JUL", "JULY", "JUIL", "JUILLET", "JULIO", "JULHO", "LUG", "LUGLIO", "JULI", "LIP", "LIPIEC", "TEMMUZ", "ИЮЛ", "ИЮЛЬ", "ΙΟΥΛ", "ΙΟΥΛΙΟΣ", "יולי", "يوليو"],
   ["AU", "AUG", "AUGUST", "AOUT", "AGO", "AGOSTO", "AUGUSTUS", "AUGUSTI", "SIE", "SIERPIEN", "AGUSTUS", "AGUSTOS", "АВГ", "АВГУСТ", "ΑΥΓ", "ΑΥΓΟΥΣΤΟΣ", "אוגוסט", "اغسطس"],
-  ["SE", "SEP", "SEPT", "SEPTEMBER", "SEPTEMBRE", "SEPTIEMBRE", "SET", "SETEMBRO", "SETTEMBRE", "WRZ", "WRZESIEN", "EYLUL", "СЕН", "СЕНТЯБРЬ", "ΣΕΠ", "ΣΕΠΤΕΜΒΡΙΟΣ", "ספטמבר", "سبتمبر"],
-  ["OC", "OCT", "OCTOBER", "OCTOBRE", "OCTUBRE", "OUT", "OUTUBRO", "OTT", "OTTOBRE", "OKT", "OKTOBER", "PAZ", "PAZDZIERNIK", "EKIM", "ОКТ", "ОКТЯБРЬ", "ΟΚΤ", "ΟΚΤΩΒΡΙΟΣ", "אוקטובר", "اكتوبر"],
-  ["NO", "NOV", "NOVEMBER", "NOVEMBRE", "NOVIEMBRE", "NOVEMBRO", "LISTOPAD", "KASIM", "НОЯ", "НОЯБРЬ", "ΝΟΕ", "ΝΟΕΜΒΡΙΟΣ", "נובמבר", "نوفمبر"],
+  ["SE", "5E", "SEP", "5EP", "SEPT", "SEPTEMBER", "SEPTEMBRE", "SEPTIEMBRE", "SET", "SETEMBRO", "SETTEMBRE", "WRZ", "WRZESIEN", "EYLUL", "СЕН", "СЕНТЯБРЬ", "ΣΕΠ", "ΣΕΠΤΕΜΒΡΙΟΣ", "ספטמבר", "سبتمبر"],
+  ["OC", "0C", "OCT", "0CT", "OCTOBER", "OCTOBRE", "OCTUBRE", "OUT", "OUTUBRO", "OTT", "OTTOBRE", "OKT", "OKTOBER", "PAZ", "PAZDZIERNIK", "EKIM", "ОКТ", "ОКТЯБРЬ", "ΟΚΤ", "ΟΚΤΩΒΡΙΟΣ", "אוקטובר", "اكتوبر"],
+  ["NO", "N0", "NOV", "N0V", "NOVEMBER", "NOVEMBRE", "NOVIEMBRE", "NOVEMBRO", "LISTOPAD", "KASIM", "НОЯ", "НОЯБРЬ", "ΝΟΕ", "ΝΟΕΜΒΡΙΟΣ", "נובמבר", "نوفمبر"],
   ["DE", "DEC", "DECEMBER", "DECEMBRE", "DIC", "DICIEMBRE", "DEZ", "DEZEMBRO", "DICEMBRE", "DEZEMBER", "DESEMBER", "GRU", "GRUDZIEN", "ARALIK", "ДЕК", "ДЕКАБРЬ", "ΔΕΚ", "ΔΕΚΕΜΒΡΙΟΣ", "דצמבר", "ديسمبر"],
 ];
 
