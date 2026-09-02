@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  daysUntilCalendarDate,
+  formatCalendarDate,
+} from "../../lib/calendar-date";
 
 type FridgeItem = {
   id: number;
@@ -9,23 +13,13 @@ type FridgeItem = {
   expiresOn: string;
 };
 
-function todayIso() {
-  const now = new Date();
-  return [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, "0"),
-    String(now.getDate()).padStart(2, "0"),
-  ].join("-");
-}
-
 function daysUntil(dateString: string) {
-  const today = new Date(`${todayIso()}T12:00:00`);
-  const expiry = new Date(`${dateString}T12:00:00`);
-  return Math.round((expiry.getTime() - today.getTime()) / 86_400_000);
+  return daysUntilCalendarDate(dateString);
 }
 
 function labelFor(dateString: string) {
   const days = daysUntil(dateString);
+  if (days === null) return "Expiry date unavailable";
   if (days < -1) return `Expired · ${Math.abs(days)} days ago`;
   if (days === -1) return "Expired yesterday";
   if (days === 0) return "Expires today";
@@ -34,11 +28,11 @@ function labelFor(dateString: string) {
 }
 
 function dateFor(dateString: string) {
-  return new Intl.DateTimeFormat("en-CA", {
+  return formatCalendarDate(dateString, {
     weekday: "short",
     month: "short",
     day: "numeric",
-  }).format(new Date(`${dateString}T12:00:00`));
+  });
 }
 
 export function DisplayClient() {
@@ -103,7 +97,7 @@ export function DisplayClient() {
           {items.slice(0, 8).map((item, index) => {
             const days = daysUntil(item.expiresOn);
             return (
-              <article className={days < 0 ? "is-expired" : days <= 1 ? "is-next" : ""} key={item.id}>
+              <article className={days !== null && days < 0 ? "is-expired" : days !== null && days <= 1 ? "is-next" : ""} key={item.id}>
                 <span className="display-index">{String(index + 1).padStart(2, "0")}</span>
                 <div>
                   <h2>{item.name}</h2>

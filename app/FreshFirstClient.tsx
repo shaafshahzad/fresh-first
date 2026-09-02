@@ -9,6 +9,10 @@ import {
   useState,
 } from "react";
 import { parseQuickItems, type QuickItem } from "../lib/quick-add";
+import {
+  daysUntilCalendarDate,
+  formatCalendarDate,
+} from "../lib/calendar-date";
 
 type FridgeItem = {
   id: number;
@@ -40,13 +44,12 @@ function localIsoDate(offsetDays = 0) {
 }
 
 function daysUntil(dateString: string) {
-  const today = new Date(`${localIsoDate()}T12:00:00`);
-  const expiry = new Date(`${dateString}T12:00:00`);
-  return Math.round((expiry.getTime() - today.getTime()) / 86_400_000);
+  return daysUntilCalendarDate(dateString);
 }
 
 function timingLabel(dateString: string) {
   const days = daysUntil(dateString);
+  if (days === null) return "Expiry date unavailable";
   if (days < -1) return `Expired ${Math.abs(days)} days ago`;
   if (days === -1) return "Expired yesterday";
   if (days === 0) return "Expires today";
@@ -56,6 +59,7 @@ function timingLabel(dateString: string) {
 
 function toneFor(dateString: string) {
   const days = daysUntil(dateString);
+  if (days === null) return "later";
   if (days < 0) return "expired";
   if (days === 0) return "urgent";
   if (days <= 2) return "soon";
@@ -63,10 +67,10 @@ function toneFor(dateString: string) {
 }
 
 function displayDate(dateString: string) {
-  return new Intl.DateTimeFormat("en-CA", {
+  return formatCalendarDate(dateString, {
     month: "short",
     day: "numeric",
-  }).format(new Date(`${dateString}T12:00:00`));
+  });
 }
 
 function sorted(items: FridgeItem[]) {
