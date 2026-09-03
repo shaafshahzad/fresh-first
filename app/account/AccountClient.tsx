@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { authClient } from "../../lib/auth-client";
 import { formatPairingCode } from "../../lib/pairing-code";
@@ -18,6 +17,8 @@ type DeviceResponse = {
   devices?: Device[];
   error?: string;
 };
+
+type AuthTransition = "idle" | "creating" | "signing-in" | "signing-out";
 
 function lastSeen(value: string | null) {
   if (!value) return "Waiting for first refresh";
@@ -36,14 +37,13 @@ export function AccountClient({
   nextPath: string;
   deviceId: string;
 }) {
-  const router = useRouter();
   const session = authClient.useSession();
   const userId = session.data?.user?.id;
   const [mode, setMode] = useState<"signin" | "signup">("signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [authBusy, setAuthBusy] = useState(false);
+  const [authTransition, setAuthTransition] = useState<AuthTransition>("idle");
   const [code, setCode] = useState("");
   const [devices, setDevices] = useState<Device[]>([]);
   const [fridgeName, setFridgeName] = useState("My fridge");
@@ -91,21 +91,39 @@ export function AccountClient({
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (authBusy) return;
-    setAuthBusy(true);
+    if (authTransition !== "idle") return;
+    setAuthTransition(mode === "signup" ? "creating" : "signing-in");
     setError("");
 
-    const result = mode === "signup"
-      ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password })
-      : await authClient.signIn.email({ email: email.trim(), password });
+    try {
+      const result = mode === "signup"
+        ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password })
+        : await authClient.signIn.email({ email: email.trim(), password });
 
-    if (result.error) {
-      setError(result.error.message ?? "Account access failed. Please try again.");
-      setAuthBusy(false);
-      return;
+      if (result.error) {
+        setError(result.error.message ?? "Account access failed. Please try again.");
+        setAuthTransition("idle");
+        return;
+      }
+      window.location.replace(nextPath);
+    } catch {
+      setError("Account access failed. Please try again.");
+      setAuthTransition("idle");
     }
-    router.push(nextPath);
-    router.refresh();
+  }
+
+  async function signOut() {
+    if (authTransition !== "idle") return;
+    setAuthTransition("signing-out");
+    setError("");
+    try {
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message);
+      window.location.replace("/account");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not sign out. Please try again.");
+      setAuthTransition("idle");
+    }
   }
 
   async function pairDevice(event: FormEvent<HTMLFormElement>) {
@@ -154,10 +172,18 @@ export function AccountClient({
     }
   }
 
-  if (session.isPending) {
+  if (session.isPending || authTransition !== "idle") {
+    const transitionCopy = session.isPending
+      ? "Opening Fresh First…"
+      : authTransition === "creating"
+        ? "Creating your account…"
+        : authTransition === "signing-out"
+          ? "Signing you out…"
+          : "Opening your fridge…";
+
     return (
       <main className="account-shell" id="main-content">
-        <p className="account-loading">Opening Fresh First…</p>
+        <p className="account-loading" role="status">{transitionCopy}</p>
       </main>
     );
   }
@@ -217,8 +243,12 @@ export function AccountClient({
               {mode === "signup" ? <small>At least eight characters</small> : null}
             </label>
             {error ? <p className="form-error" role="alert">{error}</p> : null}
-            <button className="auth-submit" disabled={authBusy} type="submit">
-              {authBusy ? "One moment…" : mode === "signup" ? "Create account" : "Sign in"}
+            <button
+              className="auth-submit"
+              disabled={authTransition !== "idle"}
+              type="submit"
+            >
+              {mode === "signup" ? "Create account" : "Sign in"}
               <span aria-hidden="true">→</span>
             </button>
           </form>
@@ -245,11 +275,7 @@ export function AccountClient({
         <button
           className="text-button"
           type="button"
-          onClick={async () => {
-            await authClient.signOut();
-            router.push("/account");
-            router.refresh();
-          }}
+          onClick={() => void signOut()}
         >
           Sign out
         </button>
