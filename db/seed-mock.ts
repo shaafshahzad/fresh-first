@@ -1,4 +1,5 @@
 import { getSql } from "./index";
+import { getOrCreateDefaultFridge } from "./fridges";
 
 const mockItems = [
   { name: "Baby spinach", offsetDays: -2 },
@@ -16,13 +17,46 @@ const mockItems = [
 
 const sql = getSql();
 
-await sql`DELETE FROM fridge_items WHERE source = 'mock'`;
+const requestedEmail = process.env.SEED_USER_EMAIL?.trim().toLowerCase();
+const users = requestedEmail
+  ? await sql`
+      SELECT "id", "email"
+      FROM "user"
+      WHERE LOWER("email") = ${requestedEmail}
+      LIMIT 1
+    `
+  : await sql`
+      SELECT "id", "email"
+      FROM "user"
+      ORDER BY "createdAt" ASC
+      LIMIT 1
+    `;
+
+if (!users[0]) {
+  throw new Error(
+    "Create a Fresh First account first, or set SEED_USER_EMAIL to an existing account.",
+  );
+}
+
+const fridge = await getOrCreateDefaultFridge(String(users[0].id));
+
+await sql`
+  DELETE FROM fridge_items
+  WHERE source = 'mock' AND fridge_id = ${fridge.id}
+`;
 
 for (const item of mockItems) {
   await sql`
-    INSERT INTO fridge_items (name, expires_on, source)
-    VALUES (${item.name}, CURRENT_DATE + (${item.offsetDays}::integer), 'mock')
+    INSERT INTO fridge_items (name, expires_on, source, fridge_id)
+    VALUES (
+      ${item.name},
+      CURRENT_DATE + (${item.offsetDays}::integer),
+      'mock',
+      ${fridge.id}
+    )
   `;
 }
 
-console.log(`Loaded ${mockItems.length} relative-date mock fridge items.`);
+console.log(
+  `Loaded ${mockItems.length} relative-date mock items into ${users[0].email}.`,
+);

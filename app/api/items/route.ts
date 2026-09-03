@@ -1,9 +1,11 @@
 import { getSql } from "../../../db";
+import { getOrCreateDefaultFridge } from "../../../db/fridges";
 import {
   type FridgeItem,
   type FridgeItemRow,
   toFridgeItem,
 } from "../../../db/schema";
+import { getRequestSession, unauthorized } from "../../../lib/server-session";
 
 export const dynamic = "force-dynamic";
 
@@ -44,13 +46,16 @@ function publicError(error: unknown) {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const session = await getRequestSession(request);
+    if (!session) return unauthorized();
+    const fridge = await getOrCreateDefaultFridge(session.user.id);
     const sql = getSql();
     const rows = (await sql`
       SELECT id, name, expires_on, created_at
       FROM fridge_items
-      WHERE status = 'active'
+      WHERE status = 'active' AND fridge_id = ${fridge.id}
       ORDER BY expires_on ASC, LOWER(name) ASC, id ASC
     `) as FridgeItemRow[];
 
@@ -65,6 +70,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await getRequestSession(request);
+    if (!session) return unauthorized();
+    const fridge = await getOrCreateDefaultFridge(session.user.id);
     const payload = (await request.json()) as ItemInput & {
       items?: ItemInput[];
     };
@@ -91,8 +99,8 @@ export async function POST(request: Request) {
     const items: FridgeItem[] = [];
     for (const input of validated) {
       const rows = (await sql`
-        INSERT INTO fridge_items (name, expires_on)
-        VALUES (${input.name}, ${input.expiresOn})
+        INSERT INTO fridge_items (name, expires_on, fridge_id)
+        VALUES (${input.name}, ${input.expiresOn}, ${fridge.id})
         RETURNING id, name, expires_on, created_at
       `) as FridgeItemRow[];
       items.push(toFridgeItem(rows[0]));
@@ -109,6 +117,9 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const session = await getRequestSession(request);
+    if (!session) return unauthorized();
+    const fridge = await getOrCreateDefaultFridge(session.user.id);
     const id = Number(new URL(request.url).searchParams.get("id"));
     if (!Number.isSafeInteger(id) || id < 1) {
       return Response.json(
@@ -131,7 +142,7 @@ export async function PATCH(request: Request) {
     const rows = (await sql`
       UPDATE fridge_items
       SET name = ${input.name}, expires_on = ${input.expiresOn}
-      WHERE id = ${id} AND status = 'active'
+      WHERE id = ${id} AND fridge_id = ${fridge.id} AND status = 'active'
       RETURNING id, name, expires_on, created_at
     `) as FridgeItemRow[];
 
@@ -150,6 +161,9 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const session = await getRequestSession(request);
+    if (!session) return unauthorized();
+    const fridge = await getOrCreateDefaultFridge(session.user.id);
     const id = Number(new URL(request.url).searchParams.get("id"));
     if (!Number.isSafeInteger(id) || id < 1) {
       return Response.json(
@@ -162,7 +176,7 @@ export async function DELETE(request: Request) {
     const rows = (await sql`
       UPDATE fridge_items
       SET status = 'used', removed_at = NOW()
-      WHERE id = ${id} AND status = 'active'
+      WHERE id = ${id} AND fridge_id = ${fridge.id} AND status = 'active'
       RETURNING id, name, expires_on, created_at
     `) as FridgeItemRow[];
 

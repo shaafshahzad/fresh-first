@@ -5,6 +5,7 @@ import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { getRequestSession, unauthorized } from "../../../lib/server-session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -157,6 +158,9 @@ async function transcribeWithGateway(audio: Uint8Array) {
 }
 
 export async function POST(request: Request) {
+  const session = await getRequestSession(request);
+  if (!session) return unauthorized();
+
   const requestLength = Number(request.headers.get("content-length") ?? 0);
   if (requestLength > MAX_AUDIO_BYTES + 100_000) {
     return publicError("That voice phrase is too large. Say one item at a time.", 413);

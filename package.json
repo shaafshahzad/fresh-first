@@ -2,6 +2,7 @@
   "name": "fresh-first",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "bun@1.3.14",
   "engines": {
     "node": ">=22.13.0"
   },
@@ -13,13 +14,16 @@
     "test": "tsx --test tests/*.test.ts",
     "lint": "eslint .",
     "db:migrate": "node --env-file=.env.local --import tsx db/migrate.ts",
-    "db:seed:mock": "node --env-file=.env.local --import tsx db/seed-mock.ts"
+    "db:seed:mock": "node --env-file=.env.local --import tsx db/seed-mock.ts",
+    "device:provision": "node --env-file=.env.local --import tsx db/provision-device.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.73",
     "@neondatabase/serverless": "^1.0.2",
     "ai": "^7.0.91",
+    "better-auth": "1.6.23",
     "next": "16.3.4",
+    "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tesseract.js": "^7.0.0"
@@ -29,6 +33,7 @@
     "@next/eslint-plugin-next": "16.3.4",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
