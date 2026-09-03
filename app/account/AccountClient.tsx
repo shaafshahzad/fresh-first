@@ -211,7 +211,8 @@ export function AccountClient({
               <span><b>3</b>Tap the NFC tag to add</span>
             </div>
           </div>
-          <form className="auth-card" onSubmit={submitAuth}>
+          <div className={`auth-card-stage${deviceId ? " has-device" : ""}`}>
+            <form className="auth-card" onSubmit={submitAuth}>
             <div className="auth-mode" aria-label="Account action">
               <button type="button" aria-pressed={mode === "signup"} onClick={() => { setMode("signup"); setError(""); }}>
                 Create account
@@ -220,38 +221,47 @@ export function AccountClient({
                 Sign in
               </button>
             </div>
-            <div className="auth-card-heading">
-              <p className="eyebrow">{mode === "signup" ? "Start here" : "Welcome back"}</p>
-              <h2>{mode === "signup" ? "Make this fridge yours." : "Open your fridge."}</h2>
-            </div>
             {deviceId ? (
               <p className="device-context">Display <strong>{deviceId}</strong> is waiting. Sign in, then enter its on-screen code.</p>
             ) : null}
-            {mode === "signup" ? (
+            <div className="auth-mode-panel">
+              <div className="auth-card-heading">
+                <p className="eyebrow">{mode === "signup" ? "Start here" : "Welcome back"}</p>
+                <h2>{mode === "signup" ? "Make this fridge yours." : "Open your fridge."}</h2>
+              </div>
+              {mode === "signup" ? (
+                <label>
+                  Your name
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    autoComplete="name"
+                    maxLength={80}
+                    required
+                  />
+                </label>
+              ) : null}
               <label>
-                Your name
-                <input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" maxLength={80} required />
+                Email
+                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
               </label>
-            ) : null}
-            <label>
-              Email
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
-            </label>
-            <label>
-              Password
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "signup" ? "new-password" : "current-password"} minLength={8} required />
-              {mode === "signup" ? <small>At least eight characters</small> : null}
-            </label>
-            {error ? <p className="form-error" role="alert">{error}</p> : null}
-            <button
-              className="auth-submit"
-              disabled={authTransition !== "idle"}
-              type="submit"
-            >
-              {mode === "signup" ? "Create account" : "Sign in"}
-              <span aria-hidden="true">→</span>
-            </button>
-          </form>
+              <label>
+                Password
+                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "signup" ? "new-password" : "current-password"} minLength={8} required />
+                {mode === "signup" ? <small>At least eight characters</small> : null}
+              </label>
+              {error ? <p className="form-error" role="alert">{error}</p> : null}
+              <button
+                className="auth-submit"
+                disabled={authTransition !== "idle"}
+                type="submit"
+              >
+                {mode === "signup" ? "Create account" : "Sign in"}
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+            </form>
+          </div>
         </section>
       </main>
     );
