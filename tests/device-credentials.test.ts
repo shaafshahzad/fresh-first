@@ -5,6 +5,7 @@ import {
   generatePairingCode,
   hashDeviceSecret,
   hashPairingCode,
+  pairingCodeMatches,
   secretsMatch,
 } from "../lib/device-credentials";
 import { formatPairingCode, normalizePairingCode } from "../lib/pairing-code";
@@ -21,14 +22,18 @@ test("generates readable eight-character pairing codes", () => {
 
 test("hashes pairing codes consistently without storing the code", () => {
   const secret = "test-pairing-secret-at-least-thirty-two-characters";
+  const codeHash = hashPairingCode("ABCD-2345", secret);
   assert.equal(
-    hashPairingCode("ABCD-2345", secret),
+    codeHash,
     hashPairingCode("abcd 2345", secret),
   );
   assert.notEqual(
-    hashPairingCode("ABCD-2345", secret),
+    codeHash,
     hashPairingCode("ABCD-2346", secret),
   );
+  assert.equal(pairingCodeMatches(codeHash, "abcd 2345", secret), true);
+  assert.equal(pairingCodeMatches(codeHash, "ABCD-2346", secret), false);
+  assert.equal(pairingCodeMatches(codeHash, "short", secret), false);
 });
 
 test("generates device credentials and verifies secrets safely", () => {

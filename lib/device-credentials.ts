@@ -41,9 +41,21 @@ export function hashPairingCode(code: string, secret = pairingSecret()) {
     .digest("hex");
 }
 
-export function secretsMatch(expectedHash: string, providedSecret: string) {
-  const providedHash = hashDeviceSecret(providedSecret);
+function hashesMatch(expectedHash: string, providedHash: string) {
   const expected = Buffer.from(expectedHash, "hex");
   const provided = Buffer.from(providedHash, "hex");
   return expected.length === provided.length && timingSafeEqual(expected, provided);
+}
+
+export function pairingCodeMatches(
+  expectedHash: string,
+  providedCode: string,
+  secret = pairingSecret(),
+) {
+  if (normalizePairingCode(providedCode).length !== 8) return false;
+  return hashesMatch(expectedHash, hashPairingCode(providedCode, secret));
+}
+
+export function secretsMatch(expectedHash: string, providedSecret: string) {
+  return hashesMatch(expectedHash, hashDeviceSecret(providedSecret));
 }
