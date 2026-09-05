@@ -8,6 +8,7 @@
  *   - TP4056 USB-C charger/protection board
  *   - MT3608 5 V boost board
  *   - MAX17043 battery gauge board
+ *   - SS12F44-G5 slide power switch (large switch from the DAOKI kit)
  *   - 25 mm round adhesive NTAG215 sticker
  *   - four 20 x 3 mm disc magnets
  *
@@ -18,7 +19,7 @@
 $fn = 72;
 
 // Select: "front", "back", "assembly", "carrier_preview",
-//         "product_preview", "magnet_test", "nfc_test"
+//         "product_preview", "magnet_test", "nfc_test", "switch_test"
 part = "assembly";
 
 // Purchased display module
@@ -69,6 +70,24 @@ nfc_center_x = case_w / 2;
 nfc_center_y = 22.0;
 nfc_notch_w = 5.0;
 nfc_notch_h = 7.0;
+
+// Power switch: larger SS12F44-G5 from Amazon ASIN B08SLQ1KBX.
+// It mounts behind the lower edge, left of center, with its 5 mm actuator
+// passing through the shell. The smaller 3 mm switch is not used.
+switch_body_l = 12.2;
+switch_body_w = 5.9;
+switch_body_depth = 6.0;
+switch_body_clearance = 0.50;
+switch_actuator_l = 3.0;
+switch_actuator_w = 3.0;
+switch_travel = 3.2;
+switch_slot_clearance = 0.80;
+switch_slot_l = switch_actuator_l + switch_travel + switch_slot_clearance;
+switch_slot_h = switch_actuator_w + switch_slot_clearance;
+switch_center_x = 34.0;
+switch_center_z = 8.0;
+switch_mount_depth = switch_body_depth + 1.2;
+switch_mount_rail = 1.4;
 
 // Display placement inside the front shell
 pcb_x = (case_w - pcb_w) / 2;
@@ -191,6 +210,66 @@ module nfc_pocket_cut(center_x, center_y) {
         );
 }
 
+module switch_slot_cut() {
+    translate([
+        switch_center_x - (switch_slot_l / 2),
+        -eps,
+        switch_center_z - (switch_slot_h / 2)
+    ])
+        cube([switch_slot_l, wall + (2 * eps), switch_slot_h]);
+}
+
+module switch_mount() {
+    opening_l = switch_body_l + switch_body_clearance;
+    opening_w = switch_body_w + switch_body_clearance;
+    x0 = switch_center_x - (opening_l / 2);
+    z0 = switch_center_z - (opening_w / 2);
+    y0 = wall - 0.30;
+
+    // Open-backed guide tunnel: the switch slides toward the lower wall and
+    // its three solder pins remain accessible from inside the enclosure.
+    translate([
+        x0 - switch_mount_rail,
+        y0,
+        z0 - switch_mount_rail
+    ])
+        cube([
+            opening_l + (2 * switch_mount_rail),
+            switch_mount_depth,
+            switch_mount_rail
+        ]);
+    translate([
+        x0 - switch_mount_rail,
+        y0,
+        z0 + opening_w
+    ])
+        cube([
+            opening_l + (2 * switch_mount_rail),
+            switch_mount_depth,
+            switch_mount_rail
+        ]);
+    translate([
+        x0 - switch_mount_rail,
+        y0,
+        z0 - switch_mount_rail
+    ])
+        cube([
+            switch_mount_rail,
+            switch_mount_depth,
+            opening_w + (2 * switch_mount_rail)
+        ]);
+    translate([
+        x0 + opening_l,
+        y0,
+        z0 - switch_mount_rail
+    ])
+        cube([
+            switch_mount_rail,
+            switch_mount_depth,
+            opening_w + (2 * switch_mount_rail)
+        ]);
+}
+
 module screw_bosses() {
     for (point = screw_points) {
         difference() {
@@ -254,6 +333,9 @@ module front_shell_skin() {
         translate([case_w - wall - eps, charge_slot_y, charge_slot_z])
             cube([wall + (2 * eps), charge_slot_length, charge_slot_height]);
 
+        // Bottom-edge opening for the large slide-switch actuator.
+        switch_slot_cut();
+
         // Minimal recessed NFC cue on the lower front face.
         translate([case_w / 2, 22.0, -eps])
             linear_extrude(height = 0.38)
@@ -273,6 +355,7 @@ module front_shell() {
         front_shell_skin();
         pcb_locators();
         screw_bosses();
+        switch_mount();
     }
 }
 
@@ -428,6 +511,16 @@ module nfc_fit_test() {
     }
 }
 
+module switch_fit_test() {
+    // Crop the production shell around the switch so the wall, slot, and
+    // open-backed guide can be tested without printing the whole enclosure.
+    intersection() {
+        front_shell();
+        translate([switch_center_x - 11.0, -eps, 0])
+            cube([22.0, 15.0 + eps, 16.0]);
+    }
+}
+
 module component_placeholders(show_dupont = true) {
     color([0.08, 0.18, 0.15, 0.92])
         translate([esp32_x, esp32_y, cover_t + carrier_riser])
@@ -466,8 +559,27 @@ module component_placeholders(show_dupont = true) {
     }
 }
 
+module switch_placeholder() {
+    opening_l = switch_body_l + switch_body_clearance;
+    opening_w = switch_body_w + switch_body_clearance;
+    x0 = switch_center_x - (switch_body_l / 2);
+    z0 = switch_center_z - (switch_body_w / 2);
+
+    color([0.55, 0.57, 0.59, 0.95])
+        translate([x0, wall, z0])
+            cube([switch_body_l, switch_body_depth, switch_body_w]);
+    color([0.08, 0.08, 0.08, 1.0])
+        translate([
+            switch_center_x - (switch_actuator_l / 2),
+            wall - 5.0,
+            switch_center_z - (switch_actuator_w / 2)
+        ])
+            cube([switch_actuator_l, 5.0, switch_actuator_w]);
+}
+
 module assembly_preview() {
     color([0.90, 0.88, 0.80, 0.55]) front_shell();
+    switch_placeholder();
 
     color([0.08, 0.25, 0.20, 0.72])
         translate([pcb_x, pcb_y, face_t + 0.15])
@@ -536,6 +648,8 @@ if (part == "front") {
     magnet_fit_test();
 } else if (part == "nfc_test") {
     nfc_fit_test();
+} else if (part == "switch_test") {
+    switch_fit_test();
 } else if (part == "product_preview") {
     product_preview();
 } else if (part == "carrier_preview") {

@@ -10,6 +10,7 @@ The revised case provides:
 - a shallow circular front pocket for a 25 mm adhesive NFC sticker;
 - four blind pockets for 20 x 3 mm disc magnets;
 - locating features for the ESP32, LiPo, charger, boost regulator, and gauge;
+- an open-backed mount for the larger SS12F44-G5 power switch;
 - a right-side USB-C charging opening;
 - wire-routing posts between the power boards and battery; and
 - enough depth for 20 mm Dupont connector bodies plus a 4 mm bend allowance.
@@ -31,6 +32,7 @@ without moving the exterior display opening. The correction is exposed as
 - `output/fresh-first-back.stl` - removable electronics-carrier cover
 - `output/fresh-first-magnet-test.stl` - quick magnet-pocket fit test
 - `output/fresh-first-nfc-test.stl` - quick 25 mm NFC-pocket fit test
+- `output/fresh-first-switch-test.stl` - cropped production switch-mount test
 - `output/fresh-first-case-preview.png` - exploded enclosure preview
 - `output/fresh-first-carrier-preview.png` - electronics layout preview
 - `output/fresh-first-product-preview.png` - product-front preview
@@ -48,6 +50,8 @@ without moving the exterior display opening. The correction is exposed as
   36 x 17 x 14 mm including the adjustment component
 - [MAX17043 battery gauge](https://www.amazon.ca/dp/B0C8RQPWX9), modeled at
   25 x 20 mm
+- [DAOKI slide-switch assortment](https://www.amazon.ca/dp/B08SLQ1KBX); use the
+  larger SS12F44-G5 switch with the 5 mm actuator
 - 4 x 20 x 3 mm neodymium disc magnets
   ([8-pack used for this design](https://www.amazon.ca/dp/B09XJ5JFFX))
 - 1 x [Timeskey NTAG215 25 mm adhesive NFC sticker](https://www.amazon.ca/dp/B0CPJ5DDCQ)
@@ -59,6 +63,14 @@ dimensions can vary between sellers and revisions, so measure every delivered
 board with calipers before relying on the carrier as a final production fit.
 The carrier features are intentionally low: they locate parts but do not cover
 connectors or clamp the battery pouch.
+
+The power switch is mounted behind the **bottom edge, left of center**. Its
+actuator remains reachable while the enclosure is attached to the fridge, but
+is hidden from the front. The printed guide accepts a nominal 12.2 x 5.9 mm
+SS12F44-G5 body with 0.25 mm clearance per side. It is open at the back so the
+three switch pins can be soldered after insertion. Add a small amount of hot
+glue or flexible electronics-safe adhesive at the rear edges after confirming
+smooth operation. Do not use the smaller 3 mm-actuator switch in this opening.
 
 ## Clearance model
 
@@ -88,6 +100,9 @@ openscad -o output/fresh-first-magnet-test.stl \
 
 openscad -o output/fresh-first-nfc-test.stl \
   -D 'part="nfc_test"' fresh-first-case.scad
+
+openscad -o output/fresh-first-switch-test.stl \
+  -D 'part="switch_test"' fresh-first-case.scad
 
 openscad -o output/fresh-first-case-preview.png \
   --imgsize=1400,1400 --viewall --autocenter --projection=o \
@@ -124,6 +139,12 @@ Print `fresh-first-nfc-test.stl` before reprinting the full front shell. Its
 includes the same removal notch. Test the sticker with its backing still on;
 only peel and adhere it during final assembly.
 
+Print `fresh-first-switch-test.stl` face-down before the full shell. It is a
+22 x 15 x 16 mm crop of the production wall and mount, not a simplified gauge.
+The large switch should slide into the guide from inside, stop against the wall,
+and move through both positions without rubbing. Adjust `switch_body_clearance`
+in 0.1 mm steps if the delivered batch differs from its nominal dimensions.
+
 ## Electrical layout
 
 The planned prototype power path is:
@@ -133,6 +154,11 @@ Protected LiPo -> TP4056 OUT -> power switch -> MT3608 set to 5.0 V -> ESP32 VIN
 ESP32 3V3 -> Waveshare VCC
 MAX17043 -> LiPo terminals and ESP32 GPIO 21/22 over I2C
 ```
+
+Use the switch's center/common pin and one outer pin: connect TP4056 `OUT+` to
+the center pin and the selected outer pin to MT3608 `IN+`. Leave the other outer
+pin unused. Confirm the intended ON direction with a multimeter in continuity
+mode before soldering. TP4056 `OUT-` connects directly to MT3608 `IN-`.
 
 Adjust and verify the MT3608 output with a multimeter **before** connecting it
 to the ESP32. Confirm LiPo polarity rather than trusting connector wire colors.
@@ -150,17 +176,20 @@ has been specifically redesigned to prevent backfeeding.
 3. Adhere the 25 mm NFC sticker inside the circular lower-front landing. The
    adhesive side faces the case front; press it flat without creasing the
    antenna. The small side notch allows later removal with tweezers.
-4. Fit the ESP32 into its carrier. Confirm that every plugged Dupont connector
+4. Slide the larger SS12F44-G5 switch into the open-backed bottom-edge guide
+   until its actuator moves freely through the slot. Solder only after the fit
+   is confirmed, then strain-relieve the switch body at its rear edges.
+5. Fit the ESP32 into its carrier. Confirm that every plugged Dupont connector
    can stand straight before its wire makes a gentle sideways bend.
-5. Fit the charger with its USB-C connector facing the right-side opening, then
+6. Fit the charger with its USB-C connector facing the right-side opening, then
    fit the boost and gauge boards.
-6. Secure the LiPo with a thin foam-backed adhesive pad inside its low cradle.
-7. Route loose conductors through the paired guide posts and keep them away from
+7. Secure the LiPo with a thin foam-backed adhesive pad inside its low cradle.
+8. Route loose conductors through the paired guide posts and keep them away from
    the cover-screw paths.
-8. Add thin foam dots at the display PCB corners so the closed cover retains it
+9. Add thin foam dots at the display PCB corners so the closed cover retains it
    gently without flexing the panel.
-9. Bond one magnet into each blind pocket and let the adhesive cure completely.
-10. Close the case with four M2.5 x 8 mm countersunk self-tapping screws. Screw
+10. Bond one magnet into each blind pocket and let the adhesive cure completely.
+11. Close the case with four M2.5 x 8 mm countersunk self-tapping screws. Screw
     heads must remain below the rear surface so they cannot scratch the fridge.
 
 Remove the rear carrier before using the ESP32 USB-C port for firmware work, and
