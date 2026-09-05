@@ -25,6 +25,9 @@ namespace display_layout {
 static constexpr int16_t kHeaderTitleY = 10;
 static constexpr int16_t kHeaderTitleHeight = 16;
 static constexpr int16_t kHeaderLabelY = 14;
+static constexpr uint8_t kHeaderLeftMaxCharacters = 15;
+static constexpr uint8_t kHeaderRightMaxCharacters = 22;
+static constexpr int16_t kHeaderRightMinimumX = 210;
 static constexpr int16_t kHeaderDividerY = 34;
 static constexpr int16_t kFridgeRowStartY = 42;
 static constexpr int16_t kFridgeRowHeight = 23;

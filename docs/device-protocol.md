@@ -44,7 +44,7 @@ An unclaimed device receives pairing mode:
 While the display is unclaimed, it persists the last pairing code and sends it
 back in `X-Pairing-Code`. The API reuses that code until it expires instead of
 invalidating a code while the customer is typing it. Pairing mode checks every
-30 seconds; normal fridge mode returns to the 15-minute low-power cycle.
+30 seconds; normal fridge mode checks for changes every 15 seconds.
 
 The display renders the pairing code until the customer claims it. Pairing
 codes are short-lived, stored as keyed hashes, and require a signed-in account.
@@ -56,6 +56,10 @@ A claimed device receives fridge mode:
   "mode": "fridge",
   "device": { "id": "FF-2ABC3DEF", "name": "Kitchen display" },
   "fridge": { "id": "...", "name": "My fridge" },
+  "header": {
+    "left": { "widget": "brand", "text": "FRESH FIRST" },
+    "right": { "widget": "attention_count", "text": "3 USE SOON" }
+  },
   "items": [
     {
       "id": 1,
@@ -67,14 +71,15 @@ A claimed device receives fridge mode:
       "tone": "soon"
     }
   ],
-  "refreshAfterSeconds": 900
+  "refreshAfterSeconds": 15
 }
 ```
 
 The endpoint includes an `ETag`. If the list is unchanged, the device receives
-`304 Not Modified` and can skip the expensive panel refresh. A 15-minute wake
-cycle is the initial default; firmware should also refresh immediately after a
-physical wake-button press.
+`304 Not Modified` and can skip the expensive panel refresh. The ETag includes
+the selected header widgets, so changing either widget triggers a repaint on
+the next 15-second sync. Widget selection is fridge-scoped and only affects the
+header band above the expiry rows.
 
 ## NFC customer flow
 

@@ -15,6 +15,11 @@ void assertContained(const LayoutRect& rect, const TextBounds& bounds,
 int main() {
   assert(display_layout::kHeaderTitleY + display_layout::kHeaderTitleHeight <
          display_layout::kHeaderDividerY);
+  assert(12 + display_layout::kHeaderLeftMaxCharacters * 12 <
+         display_layout::kHeaderRightMinimumX);
+  assert(display_layout::kHeaderRightMinimumX
+             + display_layout::kHeaderRightMaxCharacters * 6
+         <= 400);
   assert(display_layout::kFridgeRowStartY
              + (display_layout::kFridgeMaximumRows - 1)
                    * display_layout::kFridgeRowStride

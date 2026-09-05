@@ -15,6 +15,10 @@ import {
 } from "../../../../../lib/device-feed";
 import { expiryPresentation } from "../../../../../lib/expiry-urgency";
 import { formatPairingCode } from "../../../../../lib/pairing-code";
+import {
+  normalizeDisplayHeader,
+  resolveDisplayHeader,
+} from "../../../../../lib/display-widgets";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,6 +34,7 @@ type DeviceRow = {
 
 type DisplayItemRow = FridgeItemRow & {
   total_count: number | string;
+  attention_count: number | string;
 };
 
 function deviceSecret(request: Request) {
@@ -110,13 +115,21 @@ export async function GET(
   }
 
   const fridges = await sql`
-    SELECT id, name
+    SELECT id, name, header_left_widget, header_right_widget
     FROM fridges
     WHERE id = ${device.fridge_id}
     LIMIT 1
-  ` as Array<{ id: string; name: string }>;
+  ` as Array<{
+    id: string;
+    name: string;
+    header_left_widget: string;
+    header_right_widget: string;
+  }>;
   const rows = await sql`
-    SELECT id, name, expires_on, created_at, COUNT(*) OVER() AS total_count
+    SELECT id, name, expires_on, created_at,
+           COUNT(*) OVER() AS total_count,
+           COUNT(*) FILTER (WHERE expires_on <= CURRENT_DATE + 5) OVER()
+             AS attention_count
     FROM fridge_items
     WHERE fridge_id = ${device.fridge_id} AND status = 'active'
     ORDER BY expires_on ASC, LOWER(name) ASC, id ASC
@@ -129,11 +142,31 @@ export async function GET(
     ...expiryPresentation(item.expiresOn),
   }));
   const totalItemCount = Number(rows[0]?.total_count ?? 0);
+  const attentionCount = Number(rows[0]?.attention_count ?? 0);
   const hiddenItemCount = hiddenDisplayItemCount(totalItemCount, items.length);
+  const fridge = fridges[0] ?? {
+    id: device.fridge_id,
+    name: "My fridge",
+    header_left_widget: "brand",
+    header_right_widget: "fridge_name",
+  };
+  const header = resolveDisplayHeader(
+    normalizeDisplayHeader(
+      fridge.header_left_widget,
+      fridge.header_right_widget,
+    ),
+    {
+      fridgeName: fridge.name,
+      nextItemName: items[0]?.name ?? null,
+      itemCount: totalItemCount,
+      attentionCount,
+    },
+  );
   const payload = {
     mode: "fridge",
     device: { id: device.id, name: device.name },
-    fridge: fridges[0] ?? { id: device.fridge_id, name: "My fridge" },
+    fridge: { id: fridge.id, name: fridge.name },
+    header,
     items,
     totalItemCount,
     hiddenItemCount,
@@ -141,7 +174,7 @@ export async function GET(
     refreshAfterSeconds: FRIDGE_REFRESH_SECONDS,
   };
   const etag = `"${createHash("sha256")
-    .update(JSON.stringify({ items, hiddenItemCount }))
+    .update(JSON.stringify({ items, hiddenItemCount, header }))
     .digest("base64url")}"`;
 
   const version = firmwareVersion(request);

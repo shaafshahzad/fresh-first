@@ -51,6 +51,8 @@ struct DisplayItem {
 
 struct FridgeFeed {
   String name;
+  String headerLeft = "FRESH FIRST";
+  String headerRight = "MY FRIDGE";
   DisplayItem items[app_config::kMaximumItems];
   uint8_t itemCount = 0;
   uint32_t hiddenItemCount = 0;
@@ -123,14 +125,16 @@ void renderScreen(const String& screenKey, DrawFunction draw) {
   preferences.putString("screen", versionedKey);
 }
 
-void drawHeader(const String& label) {
+void drawHeader(const String& primary, const String& secondary) {
   display.setTextSize(2);
   display.setCursor(12, display_layout::kHeaderTitleY);
-  display.print("FRESH FIRST");
+  display.print(clipped(primary, display_layout::kHeaderLeftMaxCharacters));
   display.setTextSize(1);
-  const String right = clipped(label, 22);
+  const String right = clipped(secondary, display_layout::kHeaderRightMaxCharacters);
   const int16_t desiredX = display.width() - 12 - static_cast<int16_t>(right.length() * 6);
-  display.setCursor(desiredX > 210 ? desiredX : 210,
+  display.setCursor(desiredX > display_layout::kHeaderRightMinimumX
+                        ? desiredX
+                        : display_layout::kHeaderRightMinimumX,
                     display_layout::kHeaderLabelY);
   display.print(right);
   display.drawFastHLine(12, display_layout::kHeaderDividerY,
@@ -139,7 +143,7 @@ void drawHeader(const String& label) {
 
 void showWifiSetup(const String& accessPointName) {
   renderScreen("wifi:" + accessPointName, [&]() {
-    drawHeader("SETUP");
+    drawHeader("FRESH FIRST", "SETUP");
     drawCentered("CONNECT TO WI-FI", 78, 3);
     drawCentered("On your phone, join:", 120, 2);
     const LayoutRect networkBox{38, 142,
@@ -156,7 +160,7 @@ void showWifiSetup(const String& accessPointName) {
 
 void showPairing(const String& code) {
   renderScreen("pair:" + code, [&]() {
-    drawHeader("PAIR DISPLAY");
+    drawHeader("FRESH FIRST", "PAIR DISPLAY");
     drawCentered("YOUR PAIRING CODE", 76, 2);
     const LayoutRect codeBox{62, 101,
                              static_cast<int16_t>(display.width() - 124), 64};
@@ -184,7 +188,7 @@ String timingLabel(const DisplayItem& item) {
 
 void showFridge(const FridgeFeed& feed, const String& etag) {
   renderScreen("fridge:" + etag, [&]() {
-    drawHeader(feed.name);
+    drawHeader(feed.headerLeft, feed.headerRight);
     if (feed.itemCount == 0) {
       drawCentered("YOUR FRIDGE IS EMPTY", 130, 2);
       drawCentered("Add an item from your phone", 170, 2);
@@ -235,7 +239,7 @@ void showFridge(const FridgeFeed& feed, const String& etag) {
 
 void showError(const String& title, const String& detail, const String& key) {
   renderScreen("error:" + key, [&]() {
-    drawHeader("RETRYING");
+    drawHeader("FRESH FIRST", "RETRYING");
     drawCentered(clipped(title, 22), 116, 3);
     drawCentered(clipped(detail, 34), 164, 2);
     drawCentered("Fresh First will try again", 218, 2);
@@ -318,6 +322,9 @@ bool syncClock() {
 
 void parseFridgeFeed(JsonDocument& document, FridgeFeed& feed) {
   feed.name = String(document["fridge"]["name"] | "My fridge");
+  feed.headerLeft = String(document["header"]["left"]["text"] | "FRESH FIRST");
+  feed.headerRight = String(document["header"]["right"]["text"] | "");
+  if (feed.headerRight.isEmpty()) feed.headerRight = feed.name;
   feed.hiddenItemCount = document["hiddenItemCount"] | 0;
   feed.refreshAfterSeconds = document["refreshAfterSeconds"]
       | app_config::kDefaultRefreshSeconds;

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatCalendarDate } from "../../lib/calendar-date";
 import { expiryPresentation } from "../../lib/expiry-urgency";
+import type { ResolvedDisplayHeader } from "../../lib/display-widgets";
 
 type FridgeItem = {
   id: number;
@@ -25,6 +26,10 @@ export function DisplayClient() {
   const [loading, setLoading] = useState(true);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [offline, setOffline] = useState(false);
+  const [header, setHeader] = useState<ResolvedDisplayHeader>({
+    left: { widget: "brand", text: "FRESH FIRST" },
+    right: { widget: "fridge_name", text: "MY FRIDGE" },
+  });
 
   useEffect(() => {
     let active = true;
@@ -33,9 +38,13 @@ export function DisplayClient() {
       try {
         const response = await fetch("/api/items", { cache: "no-store" });
         if (!response.ok) throw new Error("sync failed");
-        const body = (await response.json()) as { items?: FridgeItem[] };
+        const body = (await response.json()) as {
+          items?: FridgeItem[];
+          header?: ResolvedDisplayHeader;
+        };
         if (active) {
           setItems(body.items ?? []);
+          if (body.header) setHeader(body.header);
           setLastSynced(new Date());
           setOffline(false);
           setLoading(false);
@@ -60,10 +69,11 @@ export function DisplayClient() {
     <main className="display-shell" id="main-content">
       <header className="display-header">
         <div>
-          <p className="display-kicker">Fresh First</p>
+          <p className="display-kicker">{header.left.text}</p>
           <h1>Use these next</h1>
         </div>
         <div className="display-meta">
+          <strong>{header.right.text}</strong>
           <span className={offline ? "offline" : ""}>{offline ? "Offline" : "Synced"}</span>
           <time>{lastSynced ? lastSynced.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—"}</time>
         </div>

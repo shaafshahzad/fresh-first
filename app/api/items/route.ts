@@ -6,6 +6,8 @@ import {
   toFridgeItem,
 } from "../../../db/schema";
 import { getRequestSession, unauthorized } from "../../../lib/server-session";
+import { resolveDisplayHeader } from "../../../lib/display-widgets";
+import { expiryPresentation } from "../../../lib/expiry-urgency";
 
 export const dynamic = "force-dynamic";
 
@@ -59,8 +61,20 @@ export async function GET(request: Request) {
       ORDER BY expires_on ASC, LOWER(name) ASC, id ASC
     `) as FridgeItemRow[];
 
+    const items = rows.map(toFridgeItem);
+    const attentionCount = items.filter((item) => {
+      const days = expiryPresentation(item.expiresOn).days;
+      return days !== null && days <= 5;
+    }).length;
+    const header = resolveDisplayHeader(fridge.displayHeader, {
+      fridgeName: fridge.name,
+      nextItemName: items[0]?.name ?? null,
+      itemCount: items.length,
+      attentionCount,
+    });
+
     return Response.json(
-      { items: rows.map(toFridgeItem) },
+      { items, fridge: { id: fridge.id, name: fridge.name }, header },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

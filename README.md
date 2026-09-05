@@ -17,6 +17,7 @@ list ordered from the soonest expiry to the latest.
 - Physical display provisioning and short-lived code pairing
 - NFC handoff that opens the correct customer fridge on a phone
 - Authenticated, ETag-enabled JSON feed for low-power e-paper firmware
+- Two configurable e-paper header widgets with a live web preview
 - Automatic expiry sorting
 - Clear expired, use-now, really-soon, and five-day warning states
 - One-tap “Used” removal with retained history

@@ -74,6 +74,16 @@ await sql`
 `;
 
 await sql`
+  ALTER TABLE fridges
+  ADD COLUMN IF NOT EXISTS header_left_widget TEXT NOT NULL DEFAULT 'brand'
+`;
+
+await sql`
+  ALTER TABLE fridges
+  ADD COLUMN IF NOT EXISTS header_right_widget TEXT NOT NULL DEFAULT 'fridge_name'
+`;
+
+await sql`
   CREATE TABLE IF NOT EXISTS devices (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL DEFAULT 'Fridge display',

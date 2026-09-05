@@ -251,6 +251,7 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
 .display-kicker { margin: 0 0 11px; color: var(--green); font: 750 11px var(--font-geist-mono), monospace; letter-spacing: .16em; text-transform: uppercase; }
 .display-header h1 { font-size: clamp(48px, 7vw, 78px); line-height: .92; }
 .display-meta { display: grid; justify-items: end; gap: 5px; font: 650 11px var(--font-geist-mono), monospace; }
+.display-meta strong { max-width: 220px; overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
 .display-meta span::before { content: ""; width: 7px; height: 7px; display: inline-block; margin-right: 7px; border-radius: 50%; background: var(--green); }
 .display-meta span.offline::before { background: var(--coral); }
 .display-meta time { color: var(--muted); }
@@ -329,6 +330,23 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
 .device-list article button:disabled { opacity: .45; cursor: wait; }
 .display-preview-link { min-height: 48px; margin-top: 10px; display: flex; align-items: center; justify-content: space-between; color: var(--ink); font-size: 12px; font-weight: 700; text-decoration: none; }
 .display-preview-link:hover { text-decoration: underline; }
+.display-customizer { margin-bottom: 28px; padding: clamp(24px, 4vw, 38px); display: grid; grid-template-columns: minmax(280px, .85fr) minmax(360px, 1.15fr); gap: clamp(36px, 7vw, 80px); align-items: center; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); box-shadow: 0 18px 48px rgba(23,53,44,.045); }
+.display-customizer-copy h2 { max-width: 520px; margin: 0; font-size: clamp(32px, 4.5vw, 50px); line-height: .98; letter-spacing: -.05em; text-wrap: balance; }
+.display-customizer-copy > p:not(.eyebrow) { max-width: 500px; margin: 18px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.widget-form { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.widget-form label { display: grid; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 700; }
+.widget-form select { width: 100%; height: 52px; padding: 0 40px 0 13px; border: 1px solid var(--line); border-radius: var(--radius-control); background: #f6f4ed; color: var(--ink); font: 650 13px var(--font-geist-sans), sans-serif; cursor: pointer; }
+.widget-form select:focus { border-color: var(--green); outline: none; box-shadow: 0 0 0 3px rgba(43,108,85,.12); }
+.widget-form .auth-submit { grid-column: 1 / -1; margin-top: 4px; }
+.preview-label { margin-bottom: 9px; display: flex; justify-content: space-between; gap: 16px; color: var(--muted); font: 650 10px var(--font-geist-mono), monospace; letter-spacing: .08em; text-transform: uppercase; }
+.epaper-preview { aspect-ratio: 4 / 3; padding: 4.5% 4%; display: flex; flex-direction: column; overflow: hidden; border: 7px solid #20312b; border-radius: 5px; background: #f2f0e4; color: #19251f; box-shadow: 0 14px 30px rgba(23,53,44,.13); font-family: var(--font-geist-mono), monospace; }
+.epaper-preview-header { min-height: 16%; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; border-bottom: 2px solid currentColor; }
+.epaper-preview-header strong { max-width: 58%; overflow: hidden; font-size: clamp(13px, 2.1vw, 23px); line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.epaper-preview-header span { max-width: 38%; overflow: hidden; font-size: clamp(7px, 1vw, 11px); font-weight: 700; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.epaper-preview-row { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 25%; gap: 12%; align-items: center; border-bottom: 1px solid currentColor; }
+.epaper-preview-row i { height: 12%; min-height: 2px; background: currentColor; opacity: .82; }
+.epaper-preview-row i:last-child { opacity: .5; }
+.epaper-preview > p { margin: auto 0 0; padding-top: 3%; font-size: clamp(6px, .85vw, 9px); text-align: center; }
 .account-notice, .account-error { margin: 0; }
 .account-notice { padding: 12px 14px; border-left: 2px solid var(--green); background: var(--green-soft); color: var(--green); font-size: 12px; }
 .device-gate { width: min(760px, calc(100% - 48px)); min-height: 100dvh; margin: 0 auto; padding: 32px 0 72px; }
@@ -423,6 +441,12 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
   .account-heading { padding: 42px 0 28px; align-items: flex-start; flex-direction: column; gap: 18px; }
   .account-heading h1 { font-size: 44px; }
   .pairing-grid { grid-template-columns: minmax(0, 1fr); }
+  .display-customizer { padding: 20px; grid-template-columns: minmax(0, 1fr); gap: 30px; }
+  .display-customizer-copy h2 { font-size: 38px; }
+  .widget-form { grid-template-columns: minmax(0, 1fr); }
+  .widget-form .auth-submit { grid-column: auto; width: 100%; }
+  .epaper-preview-header strong { font-size: clamp(12px, 5vw, 20px); }
+  .epaper-preview-header span { font-size: clamp(7px, 2.5vw, 10px); }
   .pair-code-input { height: 62px; font-size: clamp(22px, 8vw, 30px); }
   .device-list article { grid-template-columns: 10px minmax(0, 1fr); padding: 9px 0; }
   .device-list article button { grid-column: 2; width: fit-content; }
