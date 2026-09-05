@@ -10,6 +10,7 @@ import {
 } from "../../../../../lib/device-credentials";
 import {
   DISPLAY_ITEM_LIMIT,
+  FRIDGE_REFRESH_SECONDS,
   hiddenDisplayItemCount,
 } from "../../../../../lib/device-feed";
 import { expiryPresentation } from "../../../../../lib/expiry-urgency";
@@ -137,7 +138,7 @@ export async function GET(
     totalItemCount,
     hiddenItemCount,
     generatedAt: new Date().toISOString(),
-    refreshAfterSeconds: 900,
+    refreshAfterSeconds: FRIDGE_REFRESH_SECONDS,
   };
   const etag = `"${createHash("sha256")
     .update(JSON.stringify({ items, hiddenItemCount }))
@@ -150,13 +151,19 @@ export async function GET(
     WHERE id = ${device.id}
   `;
   if (request.headers.get("if-none-match") === etag) {
-    return new Response(null, { status: 304, headers: { ETag: etag } });
+    return new Response(null, {
+      status: 304,
+      headers: {
+        ETag: etag,
+        "X-Refresh-After": String(FRIDGE_REFRESH_SECONDS),
+      },
+    });
   }
   return Response.json(payload, {
     headers: {
       "Cache-Control": "private, no-store",
       ETag: etag,
-      "X-Refresh-After": "900",
+      "X-Refresh-After": String(FRIDGE_REFRESH_SECONDS),
     },
   });
 }

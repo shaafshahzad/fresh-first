@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DISPLAY_ITEM_LIMIT,
+  FRIDGE_REFRESH_SECONDS,
   hiddenDisplayItemCount,
 } from "../lib/device-feed";
 
 test("reserves the final e-paper band for overflow context", () => {
   assert.equal(DISPLAY_ITEM_LIMIT, 9);
+});
+
+test("checks the fridge feed every fifteen seconds", () => {
+  assert.equal(FRIDGE_REFRESH_SECONDS, 15);
 });
 
 test("reports only items hidden beyond the rendered rows", () => {

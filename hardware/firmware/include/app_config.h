@@ -4,10 +4,10 @@
 
 namespace app_config {
 static constexpr char kApiBaseUrl[] = "https://fresh-first.vercel.app";
-static constexpr char kFirmwareVersion[] = "0.2.7";
+static constexpr char kFirmwareVersion[] = "0.2.8";
 static constexpr char kScreenLayoutVersion[] = "9";
 
-static constexpr uint32_t kDefaultRefreshSeconds = 15 * 60;
+static constexpr uint32_t kDefaultRefreshSeconds = 15;
 static constexpr uint32_t kPairingRefreshSeconds = 30;
 static constexpr uint32_t kErrorRefreshSeconds = 60;
 static constexpr uint32_t kWifiPortalTimeoutSeconds = 5 * 60;
