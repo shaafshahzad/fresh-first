@@ -8,7 +8,7 @@
  *   - TP4056 USB-C charger/protection board
  *   - MT3608 5 V boost board
  *   - MAX17043 battery gauge board
- *   - 30 x 30 mm ferrite-backed NFC tag
+ *   - 25 mm round adhesive NTAG215 sticker
  *   - four 20 x 3 mm disc magnets
  *
  * The removable rear cover is also the electronics carrier. Its component
@@ -18,7 +18,7 @@
 $fn = 72;
 
 // Select: "front", "back", "assembly", "carrier_preview",
-//         "product_preview", "magnet_test"
+//         "product_preview", "magnet_test", "nfc_test"
 part = "assembly";
 
 // Purchased display module
@@ -58,18 +58,17 @@ magnet_t_clearance = 0.20;
 magnet_rear_skin = 0.65;
 magnet_edge_offset = 14.5;
 
-// NFC: accepts a 30 x 30 mm ferrite-backed/on-metal tag.
-nfc_tag_w = 30.0;
-nfc_tag_h = 30.0;
-nfc_tag_t = 1.0;
-nfc_xy_clearance = 2.5;
-nfc_depth_clearance = 0.40;
-nfc_front_skin = face_t - nfc_tag_t - nfc_depth_clearance;
-nfc_pocket_w = nfc_tag_w + nfc_xy_clearance;
-nfc_pocket_h = nfc_tag_h + nfc_xy_clearance;
-nfc_pocket_r = 2.0;
-nfc_pocket_x = (case_w - nfc_pocket_w) / 2;
-nfc_pocket_y = 6.0;
+// NFC: Timeskey NTAG215 round adhesive sticker, Amazon ASIN B0CPJ5DDCQ.
+nfc_tag_d = 25.0;
+nfc_tag_t = 0.35;
+nfc_diametral_clearance = 0.80;
+nfc_pocket_d = nfc_tag_d + nfc_diametral_clearance;
+nfc_pocket_depth = 0.60;
+nfc_front_skin = face_t - nfc_pocket_depth;
+nfc_center_x = case_w / 2;
+nfc_center_y = 22.0;
+nfc_notch_w = 5.0;
+nfc_notch_h = 7.0;
 
 // Display placement inside the front shell
 pcb_x = (case_w - pcb_w) / 2;
@@ -174,6 +173,24 @@ module rounded_prism(w, h, d, r) {
         rounded_rect_2d(w, h, r);
 }
 
+module nfc_pocket_cut(center_x, center_y) {
+    translate([center_x, center_y, nfc_front_skin])
+        cylinder(d = nfc_pocket_d, h = nfc_pocket_depth + eps);
+
+    // Side notch gives tweezers access if the sticker must be replaced.
+    translate([
+        center_x + (nfc_pocket_d / 2) - 1.2,
+        center_y - (nfc_notch_h / 2),
+        nfc_front_skin
+    ])
+        rounded_prism(
+            nfc_notch_w,
+            nfc_notch_h,
+            nfc_pocket_depth + eps,
+            1.6
+        );
+}
+
 module screw_bosses() {
     for (point = screw_points) {
         difference() {
@@ -230,14 +247,8 @@ module front_shell_skin() {
         translate([window_x, window_y, -eps])
             rounded_prism(window_w, window_h, face_t + (2 * eps), window_corner_r);
 
-        // NFC pocket opens inside, leaving a thin read-through front skin.
-        translate([nfc_pocket_x, nfc_pocket_y, nfc_front_skin])
-            rounded_prism(
-                nfc_pocket_w,
-                nfc_pocket_h,
-                face_t - nfc_front_skin + eps,
-                nfc_pocket_r
-            );
+        // Shallow circular landing opens inside for the adhesive NFC sticker.
+        nfc_pocket_cut(nfc_center_x, nfc_center_y);
 
         // Charging connector access at the right edge.
         translate([case_w - wall - eps, charge_slot_y, charge_slot_z])
@@ -409,6 +420,14 @@ module magnet_fit_test() {
     }
 }
 
+module nfc_fit_test() {
+    test_w = 34.0;
+    difference() {
+        rounded_prism(test_w, test_w, face_t, 4.0);
+        nfc_pocket_cut(test_w / 2, test_w / 2);
+    }
+}
+
 module component_placeholders(show_dupont = true) {
     color([0.08, 0.18, 0.15, 0.92])
         translate([esp32_x, esp32_y, cover_t + carrier_riser])
@@ -459,11 +478,8 @@ module assembly_preview() {
             cube([window_w, window_h, 0.20]);
 
     color([0.13, 0.55, 0.40, 0.85])
-        translate([
-            (case_w - nfc_tag_w) / 2,
-            nfc_pocket_y + ((nfc_pocket_h - nfc_tag_h) / 2),
-            nfc_front_skin
-        ]) cube([nfc_tag_w, nfc_tag_h, nfc_tag_t]);
+        translate([nfc_center_x, nfc_center_y, nfc_front_skin])
+            cylinder(d = nfc_tag_d, h = nfc_tag_t);
 
     // Lift and invert rear cover so its carriers face the shell.
     preview_gap = 18;
@@ -518,6 +534,8 @@ if (part == "front") {
     back_cover();
 } else if (part == "magnet_test") {
     magnet_fit_test();
+} else if (part == "nfc_test") {
+    nfc_fit_test();
 } else if (part == "product_preview") {
     product_preview();
 } else if (part == "carrier_preview") {

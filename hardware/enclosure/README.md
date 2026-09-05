@@ -7,7 +7,7 @@ The removable rear cover doubles as an organized electronics carrier.
 The revised case provides:
 
 - a rear-loading pocket for the 103 x 78.5 mm display PCB;
-- a protected 32.5 x 32.5 mm front pocket for a 30 x 30 mm NFC tag;
+- a shallow circular front pocket for a 25 mm adhesive NFC sticker;
 - four blind pockets for 20 x 3 mm disc magnets;
 - locating features for the ESP32, LiPo, charger, boost regulator, and gauge;
 - a right-side USB-C charging opening;
@@ -30,6 +30,7 @@ without moving the exterior display opening. The correction is exposed as
 - `output/fresh-first-front.stl` - deep front shell
 - `output/fresh-first-back.stl` - removable electronics-carrier cover
 - `output/fresh-first-magnet-test.stl` - quick magnet-pocket fit test
+- `output/fresh-first-nfc-test.stl` - quick 25 mm NFC-pocket fit test
 - `output/fresh-first-case-preview.png` - exploded enclosure preview
 - `output/fresh-first-carrier-preview.png` - electronics layout preview
 - `output/fresh-first-product-preview.png` - product-front preview
@@ -49,7 +50,7 @@ without moving the exterior display opening. The correction is exposed as
   25 x 20 mm
 - 4 x 20 x 3 mm neodymium disc magnets
   ([8-pack used for this design](https://www.amazon.ca/dp/B09XJ5JFFX))
-- 1 x ferrite-backed/on-metal NFC tag, no larger than 30 x 30 x 1 mm
+- 1 x [Timeskey NTAG215 25 mm adhesive NFC sticker](https://www.amazon.ca/dp/B0CPJ5DDCQ)
 - 4 x M2.5 x 8 mm countersunk self-tapping screws
 - thin closed-cell foam and high-quality VHB tape
 
@@ -85,6 +86,9 @@ openscad -o output/fresh-first-back.stl \
 openscad -o output/fresh-first-magnet-test.stl \
   -D 'part="magnet_test"' fresh-first-case.scad
 
+openscad -o output/fresh-first-nfc-test.stl \
+  -D 'part="nfc_test"' fresh-first-case.scad
+
 openscad -o output/fresh-first-case-preview.png \
   --imgsize=1400,1400 --viewall --autocenter --projection=o \
   -D 'part="assembly"' fresh-first-case.scad
@@ -115,6 +119,11 @@ Print `fresh-first-magnet-test.stl` first. The pocket is **20.4 mm diameter x
 Increase `magnet_d_clearance` in 0.1 mm steps if the delivered magnets do not
 fit. Confirm the Amazon variation is **20x3mm 8Pcs-Silver** before ordering.
 
+Print `fresh-first-nfc-test.stl` before reprinting the full front shell. Its
+25.8 mm diameter x 0.6 mm deep recess exactly matches the production pocket and
+includes the same removal notch. Test the sticker with its backing still on;
+only peel and adhere it during final assembly.
+
 ## Electrical layout
 
 The planned prototype power path is:
@@ -138,8 +147,9 @@ has been specifically redesigned to prevent backfeeding.
 2. Dry-fit the empty front shell, display, and rear carrier before installing
    the battery or adhesives. The second revision shifts all four display
    retaining rails 5 mm toward the NFC chin based on the first printed fit.
-3. Install the NFC tag in the lower front pocket with its readable face toward
-   the 0.8 mm plastic skin.
+3. Adhere the 25 mm NFC sticker inside the circular lower-front landing. The
+   adhesive side faces the case front; press it flat without creasing the
+   antenna. The small side notch allows later removal with tweezers.
 4. Fit the ESP32 into its carrier. Confirm that every plugged Dupont connector
    can stand straight before its wire makes a gentle sideways bend.
 5. Fit the charger with its USB-C connector facing the right-side opening, then
