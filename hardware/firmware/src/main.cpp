@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <Fonts/FreeMonoBold24pt7b.h>
 #include <GxEPD2_BW.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
@@ -11,6 +12,7 @@
 #include <time.h>
 
 #include "app_config.h"
+#include "layout_geometry.h"
 #include "root_ca.h"
 
 #if __has_include("device_secrets.h")
@@ -31,6 +33,7 @@ using app_config::pins::kDataCommand;
 using app_config::pins::kDataIn;
 using app_config::pins::kReset;
 
+// Waveshare's current monochrome 4.2-inch V2 panel uses the SSD1683 controller.
 GxEPD2_BW<GxEPD2_420_GDEY042T81, GxEPD2_420_GDEY042T81::HEIGHT> display(
     GxEPD2_420_GDEY042T81(kChipSelect, kDataCommand, kReset, kBusy));
 Preferences preferences;
@@ -62,47 +65,72 @@ void drawCentered(const String& text, int16_t y, uint8_t size) {
   display.print(text);
 }
 
+void drawCenteredInRect(const String& text, const LayoutRect& rect,
+                        uint8_t size) {
+  int16_t boundsX = 0;
+  int16_t boundsY = 0;
+  uint16_t boundsWidth = 0;
+  uint16_t boundsHeight = 0;
+  display.setTextSize(size);
+  display.getTextBounds(
+      text, 0, 0, &boundsX, &boundsY, &boundsWidth, &boundsHeight);
+  const LayoutPoint cursor = centeredTextOrigin(
+      rect, {boundsX, boundsY, boundsWidth, boundsHeight});
+  display.setCursor(cursor.x, cursor.y);
+  display.print(text);
+}
+
 String clipped(const String& text, size_t maximumCharacters) {
   if (text.length() <= maximumCharacters) return text;
   if (maximumCharacters <= 3) return text.substring(0, maximumCharacters);
   return text.substring(0, maximumCharacters - 3) + "...";
 }
 
-void beginFrame() {
+void beginFrame(bool clearBeforeDrawing) {
   SPI.begin(kClock, -1, kDataIn, kChipSelect);
   display.init(0, true, 2, false);
   display.setRotation(0);
+  if (clearBeforeDrawing) {
+    Serial.println("Screen layout changed; clearing the panel before redraw.");
+    display.clearScreen();
+    display.epd2.refresh(false);
+  }
   display.setFullWindow();
   display.firstPage();
 }
 
 template <typename DrawFunction>
 void renderScreen(const String& screenKey, DrawFunction draw) {
-  if (preferences.getString("screen", "") == screenKey) {
+  const String versionedKey = String(app_config::kScreenLayoutVersion) + ":" + screenKey;
+  const String previousKey = preferences.getString("screen", "");
+  if (previousKey == versionedKey) {
     Serial.println("Display content is unchanged; skipping e-paper refresh.");
     return;
   }
 
-  beginFrame();
+  const String layoutPrefix = String(app_config::kScreenLayoutVersion) + ":";
+  beginFrame(!previousKey.startsWith(layoutPrefix));
   do {
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     draw();
   } while (display.nextPage());
   display.hibernate();
-  preferences.putString("screen", screenKey);
+  preferences.putString("screen", versionedKey);
 }
 
 void drawHeader(const String& label) {
   display.setTextSize(2);
-  display.setCursor(12, 24);
+  display.setCursor(12, display_layout::kHeaderTitleY);
   display.print("FRESH FIRST");
   display.setTextSize(1);
   const String right = clipped(label, 22);
   const int16_t desiredX = display.width() - 12 - static_cast<int16_t>(right.length() * 6);
-  display.setCursor(desiredX > 210 ? desiredX : 210, 22);
+  display.setCursor(desiredX > 210 ? desiredX : 210,
+                    display_layout::kHeaderLabelY);
   display.print(right);
-  display.drawFastHLine(12, 34, display.width() - 24, GxEPD_BLACK);
+  display.drawFastHLine(12, display_layout::kHeaderDividerY,
+                        display.width() - 24, GxEPD_BLACK);
 }
 
 void showWifiSetup(const String& accessPointName) {
@@ -110,9 +138,12 @@ void showWifiSetup(const String& accessPointName) {
     drawHeader("SETUP");
     drawCentered("CONNECT TO WI-FI", 78, 3);
     drawCentered("On your phone, join:", 120, 2);
-    display.fillRoundRect(38, 142, display.width() - 76, 48, 6, GxEPD_BLACK);
+    const LayoutRect networkBox{38, 142,
+                                static_cast<int16_t>(display.width() - 76), 48};
+    display.fillRoundRect(networkBox.x, networkBox.y, networkBox.width,
+                          networkBox.height, 6, GxEPD_BLACK);
     display.setTextColor(GxEPD_WHITE);
-    drawCentered(accessPointName, 174, 2);
+    drawCenteredInRect(accessPointName, networkBox, 2);
     display.setTextColor(GxEPD_BLACK);
     drawCentered("Choose your home Wi-Fi", 226, 2);
     drawCentered("in the page that opens.", 252, 2);
@@ -123,9 +154,14 @@ void showPairing(const String& code) {
   renderScreen("pair:" + code, [&]() {
     drawHeader("PAIR DISPLAY");
     drawCentered("YOUR PAIRING CODE", 76, 2);
-    display.fillRoundRect(62, 101, display.width() - 124, 64, 7, GxEPD_BLACK);
+    const LayoutRect codeBox{62, 101,
+                             static_cast<int16_t>(display.width() - 124), 64};
+    display.fillRoundRect(codeBox.x, codeBox.y, codeBox.width, codeBox.height,
+                          7, GxEPD_BLACK);
     display.setTextColor(GxEPD_WHITE);
-    drawCentered(code, 146, 4);
+    display.setFont(&FreeMonoBold24pt7b);
+    drawCenteredInRect(code, codeBox, 1);
+    display.setFont(nullptr);
     display.setTextColor(GxEPD_BLACK);
     drawCentered("Tap the NFC tag", 205, 2);
     drawCentered("Sign in, then enter this code", 235, 2);
@@ -155,7 +191,7 @@ void showFridge(const FridgeFeed& feed, const String& etag) {
     for (uint8_t index = 0; index < feed.itemCount; index += 1) {
       const DisplayItem& item = feed.items[index];
       const int16_t top = 42 + index * 25;
-      const int16_t baseline = top + 18;
+      const int16_t textY = top + 4;
       const bool urgent = item.tone == "expired" || item.tone == "urgent";
       const bool warning = item.tone == "soon" || item.tone == "warning";
       const String timing = timingLabel(item);
@@ -169,14 +205,14 @@ void showFridge(const FridgeFeed& feed, const String& etag) {
       }
 
       display.setTextSize(2);
-      display.setCursor(14, baseline);
+      display.setCursor(14, textY);
       display.print(warning ? "! " : "  ");
       display.print(clipped(item.name, 18));
 
       const int16_t timingX = display.width() - 14 - timing.length() * 12;
       display.fillRect(timingX - 4, top + 2, timing.length() * 12 + 8, 19,
                        urgent ? GxEPD_BLACK : GxEPD_WHITE);
-      display.setCursor(timingX, baseline);
+      display.setCursor(timingX, textY);
       display.print(timing);
       display.setTextColor(GxEPD_BLACK);
     }
@@ -192,6 +228,32 @@ void showError(const String& title, const String& detail, const String& key) {
     drawCentered("automatically.", 244, 2);
   });
 }
+
+#if FRESH_FIRST_DISPLAY_DIAGNOSTIC
+void showDisplayDiagnostic() {
+  Serial.println("Drawing uncached display diagnostic.");
+  beginFrame(true);
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    display.drawRect(4, 4, display.width() - 8, display.height() - 8,
+                     GxEPD_BLACK);
+    display.fillRect(18, 18, display.width() - 36, 64, GxEPD_BLACK);
+    display.setTextColor(GxEPD_WHITE);
+    display.setFont(&FreeMonoBold24pt7b);
+    drawCenteredInRect("TEST 2468",
+                       {18, 18, static_cast<int16_t>(display.width() - 36), 64},
+                       1);
+    display.setFont(nullptr);
+    display.setTextColor(GxEPD_BLACK);
+    drawCentered("FULL PANEL REDRAW", 118, 3);
+    drawCentered("TOP", 165, 2);
+    drawCentered("MIDDLE", 210, 2);
+    drawCentered("BOTTOM " + String(app_config::kFirmwareVersion), 266, 2);
+  } while (display.nextPage());
+  display.hibernate();
+  Serial.println("Display diagnostic finished.");
+}
+#endif
 
 void sleepFor(uint32_t seconds) {
   const uint32_t boundedSeconds = constrain(seconds, 15U, 24U * 60U * 60U);
@@ -342,6 +404,11 @@ void setup() {
   delay(250);
   Serial.printf("Fresh First firmware %s starting.\n", app_config::kFirmwareVersion);
   preferences.begin("freshfirst", false);
+
+#if FRESH_FIRST_DISPLAY_DIAGNOSTIC
+  showDisplayDiagnostic();
+  while (true) delay(1000);
+#endif
 
 #if !FRESH_FIRST_PROVISIONED
   showError("NOT PROVISIONED", "Add device_secrets.h", "unprovisioned");
