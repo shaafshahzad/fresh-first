@@ -52,7 +52,7 @@ export async function GET(request: Request) {
   try {
     const session = await getRequestSession(request);
     if (!session) return unauthorized();
-    const fridge = await getOrCreateDefaultFridge(session.user.id);
+    const fridge = await getOrCreateDefaultFridge(session.user.id, session.user.name);
     const sql = getSql();
     const rows = (await sql`
       SELECT id, name, expires_on, created_at
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   try {
     const session = await getRequestSession(request);
     if (!session) return unauthorized();
-    const fridge = await getOrCreateDefaultFridge(session.user.id);
+    const fridge = await getOrCreateDefaultFridge(session.user.id, session.user.name);
     const payload = (await request.json()) as ItemInput & {
       items?: ItemInput[];
     };
@@ -133,7 +133,7 @@ export async function PATCH(request: Request) {
   try {
     const session = await getRequestSession(request);
     if (!session) return unauthorized();
-    const fridge = await getOrCreateDefaultFridge(session.user.id);
+    const fridge = await getOrCreateDefaultFridge(session.user.id, session.user.name);
     const id = Number(new URL(request.url).searchParams.get("id"));
     if (!Number.isSafeInteger(id) || id < 1) {
       return Response.json(
@@ -177,7 +177,7 @@ export async function DELETE(request: Request) {
   try {
     const session = await getRequestSession(request);
     if (!session) return unauthorized();
-    const fridge = await getOrCreateDefaultFridge(session.user.id);
+    const fridge = await getOrCreateDefaultFridge(session.user.id, session.user.name);
     const id = Number(new URL(request.url).searchParams.get("id"));
     if (!Number.isSafeInteger(id) || id < 1) {
       return Response.json(

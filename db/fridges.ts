@@ -4,6 +4,7 @@ import {
   normalizeDisplayHeader,
   type DisplayHeaderSettings,
 } from "../lib/display-widgets";
+import { defaultFridgeName } from "../lib/fridge-name";
 
 export type Fridge = {
   id: string;
@@ -29,7 +30,10 @@ function toFridge(row: FridgeRow): Fridge {
   };
 }
 
-export async function getOrCreateDefaultFridge(userId: string): Promise<Fridge> {
+export async function getOrCreateDefaultFridge(
+  userId: string,
+  userName?: string | null,
+): Promise<Fridge> {
   const sql = getSql();
   const existing = await sql`
     SELECT id, name, header_left_widget, header_right_widget
@@ -41,9 +45,10 @@ export async function getOrCreateDefaultFridge(userId: string): Promise<Fridge> 
   if (existing[0]) return toFridge(existing[0]);
 
   const id = randomUUID();
+  const name = defaultFridgeName(userName);
   const created = await sql`
     INSERT INTO fridges (id, owner_user_id, name)
-    VALUES (${id}, ${userId}, 'My fridge')
+    VALUES (${id}, ${userId}, ${name})
     ON CONFLICT (owner_user_id, name)
     DO UPDATE SET name = EXCLUDED.name
     RETURNING id, name, header_left_widget, header_right_widget

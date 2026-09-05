@@ -14,6 +14,7 @@ list ordered from the soonest expiry to the latest.
 - Exact product-name and date fields as a fallback
 - Durable Neon Postgres storage connected through Vercel
 - Email/password customer accounts with private, account-scoped fridge data
+- Personalized, editable fridge names
 - Physical display provisioning and short-lived code pairing
 - NFC handoff that opens the correct customer fridge on a phone
 - Authenticated, ETag-enabled JSON feed for low-power e-paper firmware

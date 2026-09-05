@@ -84,6 +84,32 @@ await sql`
 `;
 
 await sql`
+  UPDATE fridges AS fridge
+  SET name = TRIM(account."name")
+    || CASE
+      WHEN LOWER(RIGHT(TRIM(account."name"), 1)) = 's'
+        THEN CHR(39) || ' fridge'
+      ELSE CHR(39) || 's fridge'
+    END
+  FROM "user" AS account
+  WHERE fridge.owner_user_id = account."id"
+    AND fridge.name = 'My fridge'
+    AND TRIM(account."name") <> ''
+    AND NOT EXISTS (
+      SELECT 1
+      FROM fridges AS existing
+      WHERE existing.owner_user_id = fridge.owner_user_id
+        AND existing.id <> fridge.id
+        AND existing.name = TRIM(account."name")
+          || CASE
+            WHEN LOWER(RIGHT(TRIM(account."name"), 1)) = 's'
+              THEN CHR(39) || ' fridge'
+            ELSE CHR(39) || 's fridge'
+          END
+    )
+`;
+
+await sql`
   CREATE TABLE IF NOT EXISTS devices (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL DEFAULT 'Fridge display',

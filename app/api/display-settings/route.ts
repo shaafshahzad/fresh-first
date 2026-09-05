@@ -53,7 +53,7 @@ export async function GET(request: Request) {
   try {
     const session = await getRequestSession(request);
     if (!session) return unauthorized();
-    const fridge = await getOrCreateDefaultFridge(session.user.id);
+    const fridge = await getOrCreateDefaultFridge(session.user.id, session.user.name);
     const context = await widgetContext(fridge.id, fridge.name);
     return Response.json(responseBody(fridge, context), {
       headers: { "Cache-Control": "no-store" },
@@ -73,7 +73,7 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "Choose a valid widget for both header positions." }, { status: 400 });
     }
 
-    const fridge = await getOrCreateDefaultFridge(session.user.id);
+    const fridge = await getOrCreateDefaultFridge(session.user.id, session.user.name);
     const sql = getSql();
     await sql`
       UPDATE fridges

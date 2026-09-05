@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   try {
     const session = await getRequestSession(request);
     if (!session) return unauthorized();
-    const fridge = await getOrCreateDefaultFridge(session.user.id);
+    const fridge = await getOrCreateDefaultFridge(session.user.id, session.user.name);
     const sql = getSql();
     const rows = await sql`
       SELECT id, name, claimed_at, last_seen_at
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const fridge = await getOrCreateDefaultFridge(session.user.id);
+    const fridge = await getOrCreateDefaultFridge(session.user.id, session.user.name);
     const sql = getSql();
     const codeHash = hashPairingCode(code);
     const rows = deviceId
@@ -115,7 +115,7 @@ export async function DELETE(request: Request) {
       return Response.json({ error: "A device ID is required." }, { status: 400 });
     }
 
-    const fridge = await getOrCreateDefaultFridge(session.user.id);
+    const fridge = await getOrCreateDefaultFridge(session.user.id, session.user.name);
     const sql = getSql();
     const rows = await sql`
       UPDATE devices

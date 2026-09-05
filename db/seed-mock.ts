@@ -20,13 +20,13 @@ const sql = getSql();
 const requestedEmail = process.env.SEED_USER_EMAIL?.trim().toLowerCase();
 const users = requestedEmail
   ? await sql`
-      SELECT "id", "email"
+      SELECT "id", "name", "email"
       FROM "user"
       WHERE LOWER("email") = ${requestedEmail}
       LIMIT 1
     `
   : await sql`
-      SELECT "id", "email"
+      SELECT "id", "name", "email"
       FROM "user"
       ORDER BY "createdAt" ASC
       LIMIT 1
@@ -38,7 +38,10 @@ if (!users[0]) {
   );
 }
 
-const fridge = await getOrCreateDefaultFridge(String(users[0].id));
+const fridge = await getOrCreateDefaultFridge(
+  String(users[0].id),
+  String(users[0].name),
+);
 
 await sql`
   DELETE FROM fridge_items

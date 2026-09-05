@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { authClient } from "../../lib/auth-client";
 import { formatPairingCode } from "../../lib/pairing-code";
 import {
@@ -12,6 +12,10 @@ import {
   type DisplayHeaderSettings,
   type DisplayWidgetContext,
 } from "../../lib/display-widgets";
+import {
+  defaultFridgeName,
+  MAX_FRIDGE_NAME_LENGTH,
+} from "../../lib/fridge-name";
 
 type Device = {
   id: string;
@@ -61,7 +65,7 @@ export function AccountClient({
   const [code, setCode] = useState("");
   const [devices, setDevices] = useState<Device[]>([]);
   const [fridgeName, setFridgeName] = useState("My fridge");
-  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [devicesLoading, setDevicesLoading] = useState(true);
   const [deviceBusy, setDeviceBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -75,6 +79,10 @@ export function AccountClient({
   });
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [editingFridgeName, setEditingFridgeName] = useState(false);
+  const [fridgeNameDraft, setFridgeNameDraft] = useState("");
+  const [fridgeNameSaving, setFridgeNameSaving] = useState(false);
+  const fridgeNameInputRef = useRef<HTMLInputElement>(null);
 
   async function loadDevices() {
     setDevicesLoading(true);
@@ -112,6 +120,10 @@ export function AccountClient({
       });
     return () => controller.abort();
   }, [userId]);
+
+  useEffect(() => {
+    if (editingFridgeName) fridgeNameInputRef.current?.focus();
+  }, [editingFridgeName]);
 
   useEffect(() => {
     if (!userId) return;
@@ -162,6 +174,50 @@ export function AccountClient({
       setError(caught instanceof Error ? caught.message : "Could not save display settings.");
     } finally {
       setSettingsSaving(false);
+    }
+  }
+
+  async function renameFridge(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (fridgeNameSaving) return;
+    const name = fridgeNameDraft.trim();
+    if (!name || name.length > MAX_FRIDGE_NAME_LENGTH) {
+      setError(`Enter a fridge name between 1 and ${MAX_FRIDGE_NAME_LENGTH} characters.`);
+      return;
+    }
+    if (name === fridgeName) {
+      setEditingFridgeName(false);
+      return;
+    }
+
+    setFridgeNameSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/fridge", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const body = await response.json() as {
+        fridge?: { id: string; name: string };
+        error?: string;
+      };
+      if (!response.ok || !body.fridge) {
+        throw new Error(body.error ?? "Could not rename your fridge.");
+      }
+      const updatedName = body.fridge.name;
+      setFridgeName(updatedName);
+      setWidgetContext((current) => ({
+        ...current,
+        fridgeName: updatedName,
+      }));
+      setEditingFridgeName(false);
+      setNotice("Fridge name saved. Connected displays will update automatically.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not rename your fridge.");
+    } finally {
+      setFridgeNameSaving(false);
     }
   }
 
@@ -346,6 +402,9 @@ export function AccountClient({
   const resolvedHeader = resolveDisplayHeader(displayHeader, widgetContext);
   const settingsChanged = displayHeader.left !== savedDisplayHeader.left
     || displayHeader.right !== savedDisplayHeader.right;
+  const displayedFridgeName = devicesLoading
+    ? defaultFridgeName(session.data.user.name)
+    : fridgeName;
 
   return (
     <main className="account-shell" id="main-content">
@@ -359,7 +418,49 @@ export function AccountClient({
       <section className="account-heading">
         <div>
           <p className="eyebrow">Account & displays</p>
-          <h1>{session.data.user.name}&apos;s {fridgeName.toLowerCase()}</h1>
+          {editingFridgeName ? (
+            <form className="fridge-name-form" onSubmit={renameFridge}>
+              <label className="sr-only" htmlFor="fridge-name">Fridge name</label>
+              <input
+                id="fridge-name"
+                ref={fridgeNameInputRef}
+                value={fridgeNameDraft}
+                onChange={(event) => setFridgeNameDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setEditingFridgeName(false);
+                }}
+                maxLength={MAX_FRIDGE_NAME_LENGTH}
+                autoComplete="off"
+                disabled={fridgeNameSaving}
+                required
+              />
+              <button type="submit" disabled={fridgeNameSaving}>
+                {fridgeNameSaving ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                disabled={fridgeNameSaving}
+                onClick={() => setEditingFridgeName(false)}
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <div className="account-title-line">
+              <h1>{displayedFridgeName}</h1>
+              <button
+                className="fridge-name-edit"
+                type="button"
+                onClick={() => {
+                  setFridgeNameDraft(fridgeName);
+                  setEditingFridgeName(true);
+                  setError("");
+                }}
+              >
+                Edit
+              </button>
+            </div>
+          )}
           <p>{session.data.user.email}</p>
         </div>
         <button

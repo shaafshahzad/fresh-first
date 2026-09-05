@@ -309,8 +309,18 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
 .device-context { margin: 0 0 18px; padding: 10px 12px; border-left: 2px solid var(--green); background: var(--green-soft); color: var(--muted); font-size: 12px; }
 .device-context strong { color: var(--ink); font: 700 11px var(--font-geist-mono), monospace; }
 .account-heading { padding: clamp(56px, 8vw, 88px) 0 40px; display: flex; align-items: end; justify-content: space-between; gap: 32px; }
+.account-heading > div { min-width: 0; }
 .account-heading h1 { margin: 0; font-size: clamp(48px, 7vw, 80px); }
 .account-heading > div > p:last-child { margin: 16px 0 0; color: var(--muted); }
+.account-title-line { display: flex; align-items: center; gap: 14px; }
+.account-title-line h1 { min-width: 0; overflow-wrap: anywhere; }
+.fridge-name-edit { min-width: 44px; min-height: 44px; padding: 0 5px; flex: 0 0 auto; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; font-weight: 680; cursor: pointer; }
+.fridge-name-edit:hover { border-color: var(--ink); color: var(--ink); }
+.fridge-name-form { width: min(720px, 100%); display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 8px; align-items: center; }
+.fridge-name-form input { height: 64px; padding: 0 16px; background: var(--card); font-size: clamp(25px, 4vw, 42px); font-weight: 720; letter-spacing: -.04em; }
+.fridge-name-form button { min-width: 60px; min-height: 44px; padding: 0 10px; border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+.fridge-name-form button[type="submit"] { border-radius: 8px; background: var(--ink); color: white; }
+.fridge-name-form button:disabled { opacity: .5; cursor: wait; }
 .text-button { min-height: 44px; padding: 0 4px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
 .text-button:hover { border-color: var(--ink); color: var(--ink); }
 .pairing-grid { padding: 0 0 28px; display: grid; grid-template-columns: minmax(320px, .8fr) minmax(0, 1.2fr); gap: 18px; align-items: start; }
@@ -440,6 +450,9 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
   .auth-mode { margin: -8px -8px 22px; }
   .account-heading { padding: 42px 0 28px; align-items: flex-start; flex-direction: column; gap: 18px; }
   .account-heading h1 { font-size: 44px; }
+  .account-title-line { align-items: flex-end; gap: 8px; }
+  .fridge-name-form { grid-template-columns: minmax(0, 1fr) auto; }
+  .fridge-name-form input { grid-column: 1 / -1; height: 58px; font-size: 30px; }
   .pairing-grid { grid-template-columns: minmax(0, 1fr); }
   .display-customizer { padding: 20px; grid-template-columns: minmax(0, 1fr); gap: 30px; }
   .display-customizer-copy h2 { font-size: 38px; }

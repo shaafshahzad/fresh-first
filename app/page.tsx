@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function Home() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/account");
-  const fridge = await getOrCreateDefaultFridge(session.user.id);
+  const fridge = await getOrCreateDefaultFridge(session.user.id, session.user.name);
   return (
     <FreshFirstClient
       userName={session.user.name}
