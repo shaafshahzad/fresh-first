@@ -25,6 +25,8 @@ The device calls:
 GET /api/device/{deviceId}/feed
 Authorization: Bearer {deviceSecret}
 If-None-Match: {lastEtag}
+X-Pairing-Code: {lastPairingCode}
+X-Firmware-Version: {firmwareVersion}
 ```
 
 An unclaimed device receives pairing mode:
@@ -35,9 +37,14 @@ An unclaimed device receives pairing mode:
   "pairingCode": "ABCD-2345",
   "expiresInSeconds": 1800,
   "nfcPath": "/d/FF-2ABC3DEF",
-  "refreshAfterSeconds": 900
+  "refreshAfterSeconds": 30
 }
 ```
+
+While the display is unclaimed, it persists the last pairing code and sends it
+back in `X-Pairing-Code`. The API reuses that code until it expires instead of
+invalidating a code while the customer is typing it. Pairing mode checks every
+30 seconds; normal fridge mode returns to the 15-minute low-power cycle.
 
 The display renders the pairing code until the customer claims it. Pairing
 codes are short-lived, stored as keyed hashes, and require a signed-in account.

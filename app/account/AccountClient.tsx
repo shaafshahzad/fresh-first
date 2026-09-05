@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { authClient } from "../../lib/auth-client";
 import { formatPairingCode } from "../../lib/pairing-code";
@@ -18,6 +17,8 @@ type DeviceResponse = {
   devices?: Device[];
   error?: string;
 };
+
+type AuthTransition = "idle" | "creating" | "signing-in" | "signing-out";
 
 function lastSeen(value: string | null) {
   if (!value) return "Waiting for first refresh";
@@ -36,14 +37,13 @@ export function AccountClient({
   nextPath: string;
   deviceId: string;
 }) {
-  const router = useRouter();
   const session = authClient.useSession();
   const userId = session.data?.user?.id;
   const [mode, setMode] = useState<"signin" | "signup">("signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [authBusy, setAuthBusy] = useState(false);
+  const [authTransition, setAuthTransition] = useState<AuthTransition>("idle");
   const [code, setCode] = useState("");
   const [devices, setDevices] = useState<Device[]>([]);
   const [fridgeName, setFridgeName] = useState("My fridge");
@@ -91,21 +91,39 @@ export function AccountClient({
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (authBusy) return;
-    setAuthBusy(true);
+    if (authTransition !== "idle") return;
+    setAuthTransition(mode === "signup" ? "creating" : "signing-in");
     setError("");
 
-    const result = mode === "signup"
-      ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password })
-      : await authClient.signIn.email({ email: email.trim(), password });
+    try {
+      const result = mode === "signup"
+        ? await authClient.signUp.email({ name: name.trim(), email: email.trim(), password })
+        : await authClient.signIn.email({ email: email.trim(), password });
 
-    if (result.error) {
-      setError(result.error.message ?? "Account access failed. Please try again.");
-      setAuthBusy(false);
-      return;
+      if (result.error) {
+        setError(result.error.message ?? "Account access failed. Please try again.");
+        setAuthTransition("idle");
+        return;
+      }
+      window.location.replace(nextPath);
+    } catch {
+      setError("Account access failed. Please try again.");
+      setAuthTransition("idle");
     }
-    router.push(nextPath);
-    router.refresh();
+  }
+
+  async function signOut() {
+    if (authTransition !== "idle") return;
+    setAuthTransition("signing-out");
+    setError("");
+    try {
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message);
+      window.location.replace("/account");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not sign out. Please try again.");
+      setAuthTransition("idle");
+    }
   }
 
   async function pairDevice(event: FormEvent<HTMLFormElement>) {
@@ -154,10 +172,18 @@ export function AccountClient({
     }
   }
 
-  if (session.isPending) {
+  if (session.isPending || authTransition !== "idle") {
+    const transitionCopy = session.isPending
+      ? "Opening Fresh First…"
+      : authTransition === "creating"
+        ? "Creating your account…"
+        : authTransition === "signing-out"
+          ? "Signing you out…"
+          : "Opening your fridge…";
+
     return (
       <main className="account-shell" id="main-content">
-        <p className="account-loading">Opening Fresh First…</p>
+        <p className="account-loading" role="status">{transitionCopy}</p>
       </main>
     );
   }
@@ -185,7 +211,8 @@ export function AccountClient({
               <span><b>3</b>Tap the NFC tag to add</span>
             </div>
           </div>
-          <form className="auth-card" onSubmit={submitAuth}>
+          <div className={`auth-card-stage${deviceId ? " has-device" : ""}`}>
+            <form className="auth-card" onSubmit={submitAuth}>
             <div className="auth-mode" aria-label="Account action">
               <button type="button" aria-pressed={mode === "signup"} onClick={() => { setMode("signup"); setError(""); }}>
                 Create account
@@ -194,34 +221,47 @@ export function AccountClient({
                 Sign in
               </button>
             </div>
-            <div className="auth-card-heading">
-              <p className="eyebrow">{mode === "signup" ? "Start here" : "Welcome back"}</p>
-              <h2>{mode === "signup" ? "Make this fridge yours." : "Open your fridge."}</h2>
-            </div>
             {deviceId ? (
               <p className="device-context">Display <strong>{deviceId}</strong> is waiting. Sign in, then enter its on-screen code.</p>
             ) : null}
-            {mode === "signup" ? (
+            <div className="auth-mode-panel">
+              <div className="auth-card-heading">
+                <p className="eyebrow">{mode === "signup" ? "Start here" : "Welcome back"}</p>
+                <h2>{mode === "signup" ? "Make this fridge yours." : "Open your fridge."}</h2>
+              </div>
+              {mode === "signup" ? (
+                <label>
+                  Your name
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    autoComplete="name"
+                    maxLength={80}
+                    required
+                  />
+                </label>
+              ) : null}
               <label>
-                Your name
-                <input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" maxLength={80} required />
+                Email
+                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
               </label>
-            ) : null}
-            <label>
-              Email
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
-            </label>
-            <label>
-              Password
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "signup" ? "new-password" : "current-password"} minLength={8} required />
-              {mode === "signup" ? <small>At least eight characters</small> : null}
-            </label>
-            {error ? <p className="form-error" role="alert">{error}</p> : null}
-            <button className="auth-submit" disabled={authBusy} type="submit">
-              {authBusy ? "One moment…" : mode === "signup" ? "Create account" : "Sign in"}
-              <span aria-hidden="true">→</span>
-            </button>
-          </form>
+              <label>
+                Password
+                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "signup" ? "new-password" : "current-password"} minLength={8} required />
+                {mode === "signup" ? <small>At least eight characters</small> : null}
+              </label>
+              {error ? <p className="form-error" role="alert">{error}</p> : null}
+              <button
+                className="auth-submit"
+                disabled={authTransition !== "idle"}
+                type="submit"
+              >
+                {mode === "signup" ? "Create account" : "Sign in"}
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+            </form>
+          </div>
         </section>
       </main>
     );
@@ -245,11 +285,7 @@ export function AccountClient({
         <button
           className="text-button"
           type="button"
-          onClick={async () => {
-            await authClient.signOut();
-            router.push("/account");
-            router.refresh();
-          }}
+          onClick={() => void signOut()}
         >
           Sign out
         </button>

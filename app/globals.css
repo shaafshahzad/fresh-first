@@ -288,9 +288,13 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
 .device-path span { min-height: 52px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line-soft); color: var(--muted); font-size: 13px; }
 .device-path b { width: 24px; color: var(--green); font: 700 11px var(--font-geist-mono), monospace; }
 .auth-card, .pair-card, .device-list-card { padding: 28px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); box-shadow: 0 18px 48px rgba(23,53,44,.045); }
+.auth-card-stage { width: 100%; min-height: 563px; align-self: start; }
+.auth-card-stage.has-device { min-height: 627px; }
+.auth-card { width: 100%; }
 .auth-mode { margin: -16px -16px 26px; padding: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; border-radius: 9px; background: var(--green-soft); }
-.auth-mode button { min-height: 42px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+.auth-mode button { min-height: 42px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; transition: color 120ms ease, background-color 120ms ease, box-shadow 120ms ease; }
 .auth-mode button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(23,53,44,.08); }
+.auth-mode-panel { min-width: 0; }
 .auth-card-heading { margin-bottom: 22px; }
 .auth-card-heading h2, .pair-card h2, .device-list-card h2 { margin: 0; font-size: 27px; line-height: 1.08; letter-spacing: -.04em; text-wrap: balance; }
 .auth-card label, .pair-card label { margin-top: 16px; }
@@ -413,6 +417,8 @@ footer a { min-height: 44px; display: inline-flex; align-items: center; color: v
   .auth-intro > p:not(.eyebrow) { margin-top: 18px; font-size: 16px; }
   .device-path { margin-top: 28px; }
   .auth-card, .pair-card, .device-list-card { padding: 18px; border-radius: 14px; }
+  .auth-card-stage { min-height: 541px; }
+  .auth-card-stage.has-device { min-height: 605px; }
   .auth-mode { margin: -8px -8px 22px; }
   .account-heading { padding: 42px 0 28px; align-items: flex-start; flex-direction: column; gap: 18px; }
   .account-heading h1 { font-size: 44px; }
