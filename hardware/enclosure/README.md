@@ -1,59 +1,74 @@
 # Fresh First 4.2-inch e-paper enclosure
 
 This is a two-piece, parameterized OpenSCAD case for the Waveshare 4.2-inch
-400 × 300 e-paper module. It provides:
+400 x 300 e-paper module and the complete rechargeable prototype electronics.
+The removable rear cover doubles as an organized electronics carrier.
 
-- a rear-loading pocket for the 103 × 78.5 mm display PCB;
-- a flush removable rear cover;
-- four protected pockets for 20 × 3 mm disc magnets;
-- a front-facing 32.5 × 32.5 mm pocket for a 30 × 30 mm NFC tag;
-- an internal cavity for a small ESP32 board and wiring; and
-- a generous right-side USB/cable service opening.
+The revised case provides:
 
-The assembled shell is approximately **120 × 129.5 × 16.8 mm**. The display
-window is 86.2 × 64.8 mm. All important fit values are grouped at the top of
-`fresh-first-case.scad` so they can be adjusted after the physical parts arrive.
+- a rear-loading pocket for the 103 x 78.5 mm display PCB;
+- a protected 32.5 x 32.5 mm front pocket for a 30 x 30 mm NFC tag;
+- four blind pockets for 20 x 3 mm disc magnets;
+- locating features for the ESP32, LiPo, charger, boost regulator, and gauge;
+- a right-side USB-C charging opening;
+- wire-routing posts between the power boards and battery; and
+- enough depth for 20 mm Dupont connector bodies plus a 4 mm bend allowance.
 
-The model targets the exact module in the prototype order:
-
-- [Waveshare 4.2-inch e-paper module on Amazon Canada](https://www.amazon.ca/dp/B074NR1SW2)
-- [Waveshare module specification](https://www.waveshare.com/product/ai/displays/e-paper/4.2inch-e-paper-module.htm)
+The assembled prototype envelope is approximately **120 x 129.5 x 38 mm**.
+The visible display window is 86.2 x 64.8 mm. The increased depth is deliberate:
+the female jumper ends plugged into the ESP32 are 15-20 mm long, and the case
+must not press those connectors or force their wires through a sharp turn.
 
 ## Files
 
-- `fresh-first-case.scad` — editable source and exploded assembly preview
-- `output/fresh-first-front.stl` — front shell
-- `output/fresh-first-back.stl` — magnetized rear cover
-- `output/fresh-first-magnet-test.stl` — quick pocket-clearance test
-- `output/fresh-first-case-preview.png` — rendered exploded interior preview
-- `output/fresh-first-product-preview.png` — rendered product-front preview
+- `fresh-first-case.scad` - editable source and fit envelopes
+- `output/fresh-first-front.stl` - deep front shell
+- `output/fresh-first-back.stl` - removable electronics-carrier cover
+- `output/fresh-first-magnet-test.stl` - quick magnet-pocket fit test
+- `output/fresh-first-case-preview.png` - exploded enclosure preview
+- `output/fresh-first-carrier-preview.png` - electronics layout preview
+- `output/fresh-first-product-preview.png` - product-front preview
 
-## Hardware
+## Intended prototype hardware
 
-- Waveshare 4.2-inch E-Paper Module, 103 × 78.5 mm PCB
-- 4 × 20 × 3 mm neodymium disc magnets ([8-pack used for this design](https://www.amazon.ca/dp/B09XJ5JFFX))
-- 1 × ferrite-backed/on-metal NFC tag, no larger than 30 × 30 × 1 mm
-- 4 × M2.5 × 8 mm countersunk self-tapping screws
-- thin EVA/foam dots for the four PCB corners
-- two-part epoxy or E6000-style flexible adhesive for the magnets
+- [Waveshare 4.2-inch e-paper module](https://www.amazon.ca/dp/B074NR1SW2),
+  103 x 78.5 mm PCB
+- Generic 30-pin ESP32 DevKit, modeled at 29 x 52 mm
+- [Protected Palogreen LiPo](https://www.amazon.ca/dp/B0CKGY7YJ5), modeled at
+  50 x 34 x 10 mm
+- [TP4056 USB-C charger/protection module](https://www.amazon.ca/dp/B0CD7H3XD7),
+  modeled at 26 x 17 mm
+- [MT3608 boost converter](https://www.amazon.ca/dp/B083DN28HW), modeled at
+  36 x 17 x 14 mm including the adjustment component
+- [MAX17043 battery gauge](https://www.amazon.ca/dp/B0C8RQPWX9), modeled at
+  25 x 20 mm
+- 4 x 20 x 3 mm neodymium disc magnets
+  ([8-pack used for this design](https://www.amazon.ca/dp/B09XJ5JFFX))
+- 1 x ferrite-backed/on-metal NFC tag, no larger than 30 x 30 x 1 mm
+- 4 x M2.5 x 8 mm countersunk self-tapping screws
+- thin closed-cell foam and high-quality VHB tape
 
-The current magnet pocket is **20.4 mm diameter × 3.2 mm deep**, with a 0.65 mm
-printed skin between each magnet and the refrigerator. Print the fit-test part
-first: magnet batches and printer calibration can vary. Increase
-`magnet_d_clearance` in 0.1 mm steps if needed.
+The board carriers include 0.9-1.2 mm plan-view clearance. Amazon module
+dimensions can vary between sellers and revisions, so measure every delivered
+board with calipers before relying on the carrier as a final production fit.
+The carrier features are intentionally low: they locate parts but do not cover
+connectors or clamp the battery pouch.
 
-The linked magnet listing must have the **20x3mm 8Pcs-Silver** size selected.
-Amazon may switch the selected variation when opening a product link, so verify
-that exact size before ordering. Eight magnets provide four for the enclosure
-and four spares for fit testing or a second revision.
+## Clearance model
 
-Use an **on-metal or ferrite-backed NFC tag**. A plain sticker tag may become
-unreliable when mounted near a steel refrigerator and four strong magnets. The
-tag pocket is on the front lower chin to maximize separation from both.
+The source treats the Dupont plug as a 20 mm body and reserves another 4 mm for
+the wire to begin turning sideways. An OpenSCAD assertion prevents export if a
+future depth change makes this stack collide with the display PCB keep-out.
+The tallest current power board envelope is the 14 mm MT3608, so the ESP32
+jumper stack remains the depth-driving component.
+
+The battery cradle is a low perimeter guide only. Secure the pouch with a thin
+foam-backed adhesive pad; never crush, bend, screw through, or tightly clamp a
+LiPo cell. Leave its lead exit facing the charging and boost boards.
 
 ## Export
 
-From this directory:
+From `hardware/enclosure`:
 
 ```sh
 openscad -o output/fresh-first-front.stl \
@@ -65,6 +80,14 @@ openscad -o output/fresh-first-back.stl \
 openscad -o output/fresh-first-magnet-test.stl \
   -D 'part="magnet_test"' fresh-first-case.scad
 
+openscad -o output/fresh-first-case-preview.png \
+  --imgsize=1400,1400 --viewall --autocenter --projection=o \
+  -D 'part="assembly"' fresh-first-case.scad
+
+openscad -o output/fresh-first-carrier-preview.png \
+  --imgsize=1400,1400 --viewall --autocenter --projection=o \
+  -D 'part="carrier_preview"' fresh-first-case.scad
+
 openscad -o output/fresh-first-product-preview.png \
   --imgsize=1200,1200 --viewall --autocenter --projection=o \
   -D 'part="product_preview"' fresh-first-case.scad
@@ -72,36 +95,69 @@ openscad -o output/fresh-first-product-preview.png \
 
 ## Print settings
 
-- PETG recommended; PLA is fine for the first dimensional prototype.
-- 0.20 mm layer height, 0.4 mm nozzle.
-- 4 perimeters, 5 top/bottom layers, 20–30% gyroid infill.
-- Print the front shell face-down and the rear cover fridge-side-down.
-- No supports should be needed. Bridge the right-side service opening.
+- PETG recommended; PLA is acceptable for the first fit prototype.
+- 0.20 mm layer height with a 0.4 mm nozzle.
+- 4 wall loops, 5 top and bottom layers, 25% gyroid infill.
+- Print the front shell face-down.
+- Print the rear carrier fridge-side-down, with all carrier features upward.
+- No support should be required. A 5 mm brim is useful for the tall front shell
+  if bed adhesion is uncertain.
+- Do not print the committed STLs from an older Bambu Studio project without
+  first removing and reimporting them; the geometry has changed substantially.
+
+Print `fresh-first-magnet-test.stl` first. The pocket is **20.4 mm diameter x
+3.35 mm usable depth**, leaving a 0.65 mm printed skin against the refrigerator.
+Increase `magnet_d_clearance` in 0.1 mm steps if the delivered magnets do not
+fit. Confirm the Amazon variation is **20x3mm 8Pcs-Silver** before ordering.
+
+## Electrical layout
+
+The planned prototype power path is:
+
+```text
+Protected LiPo -> TP4056 OUT -> power switch -> MT3608 set to 5.0 V -> ESP32 VIN
+ESP32 3V3 -> Waveshare VCC
+MAX17043 -> LiPo terminals and ESP32 GPIO 21/22 over I2C
+```
+
+Adjust and verify the MT3608 output with a multimeter **before** connecting it
+to the ESP32. Confirm LiPo polarity rather than trusting connector wire colors.
+This TP4056 prototype does not provide proper power-path/load-sharing behavior;
+charge with the device switched off. Never connect laptop USB power and the
+battery-derived 5 V rail to the ESP32 at the same time unless the power circuit
+has been specifically redesigned to prevent backfeeding.
 
 ## Assembly
 
-1. Print `fresh-first-magnet-test.stl` and confirm the magnet pocket before the
-   full rear cover.
-2. Dry-fit the display from the rear. Do not force the glass or flex cable.
-3. Bond the NFC tag inside the lower front pocket, with its readable face aimed
-   through the 0.8 mm front skin.
-4. Mount the ESP32 and any battery with thin VHB/foam tape after confirming the
-   exact purchased board and battery dimensions.
-5. Put a thin foam dot on each PCB corner so the closed rear cover holds the
-   module gently without flexing it.
-6. Epoxy one magnet into each rear-cover pocket. Let the adhesive cure fully.
-7. Close the case with four M2.5 × 8 mm countersunk self-tapping screws. Their
-   heads must sit below the rear surface so they cannot scratch the fridge.
+1. Print and test the magnet coupon.
+2. Dry-fit the empty front shell, display, and rear carrier before installing
+   the battery or adhesives.
+3. Install the NFC tag in the lower front pocket with its readable face toward
+   the 0.8 mm plastic skin.
+4. Fit the ESP32 into its carrier. Confirm that every plugged Dupont connector
+   can stand straight before its wire makes a gentle sideways bend.
+5. Fit the charger with its USB-C connector facing the right-side opening, then
+   fit the boost and gauge boards.
+6. Secure the LiPo with a thin foam-backed adhesive pad inside its low cradle.
+7. Route loose conductors through the paired guide posts and keep them away from
+   the cover-screw paths.
+8. Add thin foam dots at the display PCB corners so the closed cover retains it
+   gently without flexing the panel.
+9. Bond one magnet into each blind pocket and let the adhesive cure completely.
+10. Close the case with four M2.5 x 8 mm countersunk self-tapping screws. Screw
+    heads must remain below the rear surface so they cannot scratch the fridge.
 
-Do not print around installed magnets. Install them only after printing, and
-keep loose neodymium magnets away from children, pets, magnetic cards, and
-medical implants. They are brittle and can chip or pinch when allowed to snap
-together.
+Remove the rear carrier before using the ESP32 USB-C port for firmware work, and
+disconnect the battery-derived output first. Do not print around installed
+magnets. Keep loose neodymium magnets away from children, pets, magnetic cards,
+and medical implants; they are brittle and can chip or pinch.
 
-## Fit notes before a production enclosure
+## Before calling this production-ready
 
-This first version uses the manufacturer's PCB dimensions and allows extra
-clearance for prototype wiring. Before a production print, measure the delivered
-module's screen offset, rear component height, connector location, ESP32 board,
-battery, screw heads, NFC tag, and magnets with calipers, then update the grouped
-parameters at the top of the SCAD file.
+This is a fit-tolerant prototype derived from manufacturer and listing
+dimensions. Measure the delivered battery and each circuit board, including
+their solder joints, USB connector overhang, wire-exit direction, and tallest
+component. Then update the grouped parameters near the top of
+`fresh-first-case.scad`. A production revision should also use a proper
+load-sharing power-path circuit, a keyed battery connector, strain relief, and
+a vented/flame-retardant material strategy reviewed for the chosen LiPo.
