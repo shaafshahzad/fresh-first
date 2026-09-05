@@ -11,7 +11,7 @@ The revised case provides:
 - four blind pockets for 20 x 3 mm disc magnets;
 - locating features for the ESP32, LiPo, charger, boost regulator, and gauge;
 - an open-backed mount for the larger SS12F44-G5 power switch;
-- a right-side USB-C charging opening;
+- a flush, close-fitting right-side USB-C charging opening;
 - wire-routing posts between the power boards and battery; and
 - enough depth for 20 mm Dupont connector bodies plus a 4 mm bend allowance.
 
@@ -36,6 +36,7 @@ without moving the exterior display opening. The correction is exposed as
 - `output/fresh-first-case-preview.png` - exploded enclosure preview
 - `output/fresh-first-carrier-preview.png` - electronics layout preview
 - `output/fresh-first-product-preview.png` - product-front preview
+- `output/fresh-first-charger-preview.png` - closed cutaway of the flush charge port
 
 ## Intended prototype hardware
 
@@ -84,6 +85,14 @@ The battery cradle is a low perimeter guide only. Secure the pouch with a thin
 foam-backed adhesive pad; never crush, bend, screw through, or tightly clamp a
 LiPo cell. Leave its lead exit facing the charging and boost boards.
 
+The TP4056 carrier is open on the USB-C side and places the nominal 26 mm board
+envelope against the right exterior plane. The receptacle opening is a rounded
+9.8 x 4.1 mm slot, including 0.3 mm clearance per side. If the printed opening
+is too tight, increase `charger_usb_clearance` in 0.1 mm steps. If the delivered
+board and connector do not measure 26 mm overall, update `charger_w` after
+measuring the full envelope with calipers; the carrier derives the flush
+position from that total length.
+
 ## Export
 
 From `hardware/enclosure`:
@@ -115,6 +124,12 @@ openscad -o output/fresh-first-carrier-preview.png \
 openscad -o output/fresh-first-product-preview.png \
   --imgsize=1200,1200 --viewall --autocenter --projection=o \
   -D 'part="product_preview"' fresh-first-case.scad
+
+openscad -o output/fresh-first-charger-preview.png \
+  --render --imgsize=1200,900 \
+  --camera=150,52.5,33.5,120,52.5,33.5 --projection=o \
+  --colorscheme='Tomorrow' \
+  -D 'part="charger_preview"' fresh-first-case.scad
 ```
 
 ## Print settings
@@ -181,8 +196,11 @@ has been specifically redesigned to prevent backfeeding.
    is confirmed, then strain-relieve the switch body at its rear edges.
 5. Fit the ESP32 into its carrier. Confirm that every plugged Dupont connector
    can stand straight before its wire makes a gentle sideways bend.
-6. Fit the charger with its USB-C connector facing the right-side opening, then
-   fit the boost and gauge boards.
+6. Slide the charger receptacle through the right-side opening from inside, then
+   lower the board into its open-sided carrier. The metal receptacle face should
+   sit even with the exterior wall; secure the board only after confirming a
+   USB-C plug inserts fully without pressing on the printed shell. Then fit the
+   boost and gauge boards.
 7. Secure the LiPo with a thin foam-backed adhesive pad inside its low cradle.
 8. Route loose conductors through the paired guide posts and keep them away from
    the cover-screw paths.

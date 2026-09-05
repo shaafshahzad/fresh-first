@@ -19,7 +19,8 @@
 $fn = 72;
 
 // Select: "front", "back", "assembly", "carrier_preview",
-//         "product_preview", "magnet_test", "nfc_test", "switch_test"
+//         "product_preview", "charger_preview", "magnet_test", "nfc_test",
+//         "switch_test"
 part = "assembly";
 
 // Purchased display module
@@ -143,12 +144,23 @@ boost_h = 17.0;
 boost_t = 14.0;
 boost_clearance = 1.0;
 
-charger_x = 87.0;
 charger_y = 44.0;
 charger_w = 26.0;
 charger_h = 17.0;
 charger_t = 5.0;
 charger_clearance = 1.0;
+charger_pcb_t = 1.6;
+
+// The 26 mm envelope includes the USB-C receptacle. Its face now sits flush
+// with the exterior wall instead of being recessed inside the enclosure.
+charger_usb_overhang = 1.5;
+charger_usb_depth = 7.0;
+charger_usb_w = 9.2;
+charger_usb_h = 3.5;
+charger_usb_clearance = 0.60;
+charger_pcb_w = charger_w - charger_usb_overhang;
+charger_x = case_w - charger_w;
+charger_usb_face_x = charger_x + charger_w;
 
 gauge_x = 88.0;
 gauge_y = 69.0;
@@ -170,11 +182,20 @@ assert(
     "Increase shell_depth: ESP32 Dupont connectors do not have enough clearance"
 );
 
-// USB-C charge opening aligned with the TP4056 board on the right wall.
-charge_slot_y = charger_y + 2.5;
-charge_slot_length = 12.0;
-charge_slot_height = 9.0;
-charge_slot_z = shell_depth - cover_t - 7.0;
+assert(
+    abs(charger_usb_face_x - case_w) < 0.001,
+    "The charger receptacle face must remain flush with the exterior wall"
+);
+
+// Close-fitting USB-C opening aligned with the receptacle in the assembled
+// orientation. Increase charger_usb_clearance in 0.1 mm steps for printer fit.
+charge_slot_length = charger_usb_w + charger_usb_clearance;
+charge_slot_height = charger_usb_h + charger_usb_clearance;
+charge_slot_y = charger_y + ((charger_h - charge_slot_length) / 2);
+charge_slot_z = (shell_depth + cover_t)
+    - (cover_t + carrier_riser + charger_pcb_t + charger_usb_h)
+    - (charger_usb_clearance / 2);
+charge_slot_r = charge_slot_height / 2;
 
 eps = 0.02;
 
@@ -190,6 +211,16 @@ module rounded_rect_2d(w, h, r) {
 module rounded_prism(w, h, d, r) {
     linear_extrude(height = d)
         rounded_rect_2d(w, h, r);
+}
+
+module rounded_side_slot(x, y, z, depth, length, height, radius) {
+    // Rounded rectangle in the Y/Z plane, extruded through a side wall.
+    hull()
+        for (slot_y = [y + radius, y + length - radius])
+            for (slot_z = [z + radius, z + height - radius])
+                translate([x, slot_y, slot_z])
+                    rotate([0, 90, 0])
+                        cylinder(r = radius, h = depth);
 }
 
 module nfc_pocket_cut(center_x, center_y) {
@@ -329,9 +360,16 @@ module front_shell_skin() {
         // Shallow circular landing opens inside for the adhesive NFC sticker.
         nfc_pocket_cut(nfc_center_x, nfc_center_y);
 
-        // Charging connector access at the right edge.
-        translate([case_w - wall - eps, charge_slot_y, charge_slot_z])
-            cube([wall + (2 * eps), charge_slot_length, charge_slot_height]);
+        // Flush, close-fitting charging connector access at the right edge.
+        rounded_side_slot(
+            case_w - wall - eps,
+            charge_slot_y,
+            charge_slot_z,
+            wall + (2 * eps),
+            charge_slot_length,
+            charge_slot_height,
+            charge_slot_r
+        );
 
         // Bottom-edge opening for the large slide-switch actuator.
         switch_slot_cut();
@@ -404,6 +442,35 @@ module component_carrier(x, y, w, h, clearance) {
     corner_locator(x, y, w, h, clearance);
 }
 
+module charger_carrier() {
+    // Leave the connector side open so the receptacle can pass through the
+    // shell and stop with its face exactly at the exterior surface.
+    x0 = charger_x - (charger_clearance / 2);
+    y0 = charger_y - (charger_clearance / 2);
+    outer_h = charger_h + charger_clearance;
+    support_w = charger_pcb_w - charger_usb_depth + 0.8;
+    z0 = cover_t;
+    pad = 4.0;
+
+    for (pad_x = [charger_x + 1.0, charger_x + support_w - pad - 1.0])
+        for (pad_y = [charger_y + 1.0, charger_y + charger_h - pad - 1.0])
+            translate([pad_x, pad_y, cover_t])
+                cube([pad, pad, carrier_riser]);
+
+    // Left stops locate insertion depth; top and bottom rails locate the PCB
+    // while ending before the USB-C shell.
+    translate([x0 - carrier_wall, y0 - carrier_wall, z0]) {
+        cube([carrier_wall, carrier_corner, carrier_lip_h]);
+        cube([carrier_corner, carrier_wall, carrier_lip_h]);
+    }
+    translate([x0 - carrier_wall, y0 + outer_h - carrier_corner, z0])
+        cube([carrier_wall, carrier_corner + carrier_wall, carrier_lip_h]);
+    translate([x0 - carrier_wall, y0 + outer_h, z0])
+        cube([support_w + carrier_wall, carrier_wall, carrier_lip_h]);
+    translate([x0, y0 - carrier_wall, z0])
+        cube([support_w, carrier_wall, carrier_lip_h]);
+}
+
 module battery_cradle() {
     x0 = battery_x - (battery_clearance / 2);
     y0 = battery_y - (battery_clearance / 2);
@@ -443,7 +510,7 @@ module electronics_carriers() {
     // ESP32 is raised for solder joints; open stops preserve header access.
     component_carrier(esp32_x, esp32_y, esp32_w, esp32_h, esp32_clearance);
     component_carrier(boost_x, boost_y, boost_w, boost_h, boost_clearance);
-    component_carrier(charger_x, charger_y, charger_w, charger_h, charger_clearance);
+    charger_carrier();
     component_carrier(gauge_x, gauge_y, gauge_w, gauge_h, gauge_clearance);
     battery_cradle();
 
@@ -521,6 +588,37 @@ module switch_fit_test() {
     }
 }
 
+module charger_placeholder() {
+    board_z = cover_t + carrier_riser;
+    usb_x = charger_usb_face_x - charger_usb_depth;
+    usb_y = charger_y + ((charger_h - charger_usb_w) / 2);
+    usb_z = board_z + charger_pcb_t;
+
+    color([0.12, 0.32, 0.58, 0.90])
+        translate([charger_x, charger_y, board_z])
+            cube([charger_pcb_w, charger_h, charger_pcb_t]);
+
+    color([0.68, 0.70, 0.74, 1.0])
+        rounded_side_slot(
+            usb_x,
+            usb_y,
+            usb_z,
+            charger_usb_depth,
+            charger_usb_w,
+            charger_usb_h,
+            charger_usb_h / 2
+        );
+
+    // Remaining board components stay inside the overall height envelope.
+    color([0.10, 0.20, 0.34, 0.72])
+        translate([charger_x + 2.0, charger_y + 2.0, board_z + charger_pcb_t])
+            cube([
+                charger_pcb_w - charger_usb_depth - 3.0,
+                charger_h - 4.0,
+                charger_t - charger_pcb_t
+            ]);
+}
+
 module component_placeholders(show_dupont = true) {
     color([0.08, 0.18, 0.15, 0.92])
         translate([esp32_x, esp32_y, cover_t + carrier_riser])
@@ -530,9 +628,7 @@ module component_placeholders(show_dupont = true) {
         translate([boost_x, boost_y, cover_t + carrier_riser])
             cube([boost_w, boost_h, boost_t]);
 
-    color([0.12, 0.32, 0.58, 0.90])
-        translate([charger_x, charger_y, cover_t + carrier_riser])
-            cube([charger_w, charger_h, charger_t]);
+    charger_placeholder();
 
     color([0.25, 0.45, 0.60, 0.90])
         translate([gauge_x, gauge_y, cover_t + carrier_riser])
@@ -640,6 +736,29 @@ module product_preview() {
     }
 }
 
+module charger_detail_preview() {
+    // Closed, cutaway assembly centered on the right-side charge receptacle.
+    detail_x = case_w - 31.0;
+    detail_y = charger_y - 9.0;
+    detail_z = charge_slot_z - 8.0;
+
+    intersection() {
+        color([0.90, 0.88, 0.80, 0.70]) front_shell();
+        translate([detail_x, detail_y, detail_z])
+            cube([32.0, charger_h + 18.0, 18.0]);
+    }
+
+    translate([0, 0, shell_depth + cover_t])
+        mirror([0, 0, 1]) {
+            intersection() {
+                color([0.20, 0.20, 0.20, 0.62]) back_cover();
+                translate([detail_x, detail_y, cover_t - 0.1])
+                    cube([32.0, charger_h + 18.0, 13.0]);
+            }
+            charger_placeholder();
+        }
+}
+
 if (part == "front") {
     front_shell();
 } else if (part == "back") {
@@ -654,6 +773,8 @@ if (part == "front") {
     product_preview();
 } else if (part == "carrier_preview") {
     carrier_preview();
+} else if (part == "charger_preview") {
+    charger_detail_preview();
 } else {
     assembly_preview();
 }
