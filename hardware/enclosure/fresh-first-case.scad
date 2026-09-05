@@ -376,15 +376,16 @@ module front_shell_skin() {
 
         // Minimal recessed NFC cue on the lower front face.
         translate([case_w / 2, 22.0, -eps])
-            linear_extrude(height = 0.38)
-                text(
-                    "TAP TO ADD",
-                    size = 4.2,
-                    halign = "center",
-                    valign = "center",
-                    font = "Arial:style=Bold",
-                    spacing = 1.08
-                );
+            rotate([0, 0, 180])
+                linear_extrude(height = 0.38)
+                    text(
+                        "TAP TO ADD",
+                        size = 4.2,
+                        halign = "center",
+                        valign = "center",
+                        font = "Arial:style=Bold",
+                        spacing = 1.08
+                    );
     }
 }
 
