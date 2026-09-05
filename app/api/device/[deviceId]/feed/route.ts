@@ -8,6 +8,10 @@ import {
   pairingCodeMatches,
   secretsMatch,
 } from "../../../../../lib/device-credentials";
+import {
+  DISPLAY_ITEM_LIMIT,
+  hiddenDisplayItemCount,
+} from "../../../../../lib/device-feed";
 import { expiryPresentation } from "../../../../../lib/expiry-urgency";
 import { formatPairingCode } from "../../../../../lib/pairing-code";
 
@@ -21,6 +25,10 @@ type DeviceRow = {
   api_key_hash: string;
   pairing_code_hash: string | null;
   pairing_code_expires_at: string | Date | null;
+};
+
+type DisplayItemRow = FridgeItemRow & {
+  total_count: number | string;
 };
 
 function deviceSecret(request: Request) {
@@ -107,27 +115,33 @@ export async function GET(
     LIMIT 1
   ` as Array<{ id: string; name: string }>;
   const rows = await sql`
-    SELECT id, name, expires_on, created_at
+    SELECT id, name, expires_on, created_at, COUNT(*) OVER() AS total_count
     FROM fridge_items
     WHERE fridge_id = ${device.fridge_id} AND status = 'active'
     ORDER BY expires_on ASC, LOWER(name) ASC, id ASC
-    LIMIT 12
-  ` as FridgeItemRow[];
+    LIMIT ${DISPLAY_ITEM_LIMIT}
+  ` as DisplayItemRow[];
   const items = rows.map(toFridgeItem).map((item) => ({
     id: item.id,
     name: item.name,
     expiresOn: item.expiresOn,
     ...expiryPresentation(item.expiresOn),
   }));
+  const totalItemCount = Number(rows[0]?.total_count ?? 0);
+  const hiddenItemCount = hiddenDisplayItemCount(totalItemCount, items.length);
   const payload = {
     mode: "fridge",
     device: { id: device.id, name: device.name },
     fridge: fridges[0] ?? { id: device.fridge_id, name: "My fridge" },
     items,
+    totalItemCount,
+    hiddenItemCount,
     generatedAt: new Date().toISOString(),
     refreshAfterSeconds: 900,
   };
-  const etag = `"${createHash("sha256").update(JSON.stringify(items)).digest("base64url")}"`;
+  const etag = `"${createHash("sha256")
+    .update(JSON.stringify({ items, hiddenItemCount }))
+    .digest("base64url")}"`;
 
   const version = firmwareVersion(request);
   await sql`

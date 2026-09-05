@@ -38,6 +38,9 @@ GxEPD2_BW<GxEPD2_420_GDEY042T81, GxEPD2_420_GDEY042T81::HEIGHT> display(
     GxEPD2_420_GDEY042T81(kChipSelect, kDataCommand, kReset, kBusy));
 Preferences preferences;
 
+static_assert(app_config::kMaximumItems == display_layout::kFridgeMaximumRows,
+              "Feed capacity must match the number of rendered rows");
+
 struct DisplayItem {
   String name;
   String expiresOn;
@@ -50,6 +53,7 @@ struct FridgeFeed {
   String name;
   DisplayItem items[app_config::kMaximumItems];
   uint8_t itemCount = 0;
+  uint32_t hiddenItemCount = 0;
   uint32_t refreshAfterSeconds = app_config::kDefaultRefreshSeconds;
 };
 
@@ -190,18 +194,21 @@ void showFridge(const FridgeFeed& feed, const String& etag) {
 
     for (uint8_t index = 0; index < feed.itemCount; index += 1) {
       const DisplayItem& item = feed.items[index];
-      const int16_t top = 42 + index * 25;
+      const int16_t top = display_layout::kFridgeRowStartY
+          + index * display_layout::kFridgeRowStride;
       const int16_t textY = top + 4;
       const bool urgent = item.tone == "expired" || item.tone == "urgent";
       const bool warning = item.tone == "soon" || item.tone == "warning";
       const String timing = timingLabel(item);
 
       if (urgent) {
-        display.fillRect(8, top, display.width() - 16, 23, GxEPD_BLACK);
+        display.fillRect(8, top, display.width() - 16,
+                         display_layout::kFridgeRowHeight, GxEPD_BLACK);
         display.setTextColor(GxEPD_WHITE);
       } else {
         display.setTextColor(GxEPD_BLACK);
-        display.drawFastHLine(8, top + 23, display.width() - 16, GxEPD_BLACK);
+        display.drawFastHLine(8, top + display_layout::kFridgeRowHeight,
+                              display.width() - 16, GxEPD_BLACK);
       }
 
       display.setTextSize(2);
@@ -215,6 +222,13 @@ void showFridge(const FridgeFeed& feed, const String& etag) {
       display.setCursor(timingX, textY);
       display.print(timing);
       display.setTextColor(GxEPD_BLACK);
+    }
+
+    if (feed.hiddenItemCount > 0) {
+      display.drawFastHLine(8, display_layout::kFridgeFooterDividerY,
+                            display.width() - 16, GxEPD_BLACK);
+      drawCentered("+ " + String(feed.hiddenItemCount) + " MORE - TAP NFC",
+                   display_layout::kFridgeFooterTextY, 1);
     }
   });
 }
@@ -304,6 +318,7 @@ bool syncClock() {
 
 void parseFridgeFeed(JsonDocument& document, FridgeFeed& feed) {
   feed.name = String(document["fridge"]["name"] | "My fridge");
+  feed.hiddenItemCount = document["hiddenItemCount"] | 0;
   feed.refreshAfterSeconds = document["refreshAfterSeconds"]
       | app_config::kDefaultRefreshSeconds;
 

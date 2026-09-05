@@ -4,15 +4,15 @@
 
 namespace app_config {
 static constexpr char kApiBaseUrl[] = "https://fresh-first.vercel.app";
-static constexpr char kFirmwareVersion[] = "0.2.6";
-static constexpr char kScreenLayoutVersion[] = "8";
+static constexpr char kFirmwareVersion[] = "0.2.7";
+static constexpr char kScreenLayoutVersion[] = "9";
 
 static constexpr uint32_t kDefaultRefreshSeconds = 15 * 60;
 static constexpr uint32_t kPairingRefreshSeconds = 30;
 static constexpr uint32_t kErrorRefreshSeconds = 60;
 static constexpr uint32_t kWifiPortalTimeoutSeconds = 5 * 60;
 static constexpr uint32_t kClockSyncTimeoutMs = 15 * 1000;
-static constexpr uint8_t kMaximumItems = 10;
+static constexpr uint8_t kMaximumItems = 9;
 
 namespace pins {
 static constexpr int kBusy = 25;

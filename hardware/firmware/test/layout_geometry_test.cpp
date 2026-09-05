@@ -15,6 +15,14 @@ void assertContained(const LayoutRect& rect, const TextBounds& bounds,
 int main() {
   assert(display_layout::kHeaderTitleY + display_layout::kHeaderTitleHeight <
          display_layout::kHeaderDividerY);
+  assert(display_layout::kFridgeRowStartY
+             + (display_layout::kFridgeMaximumRows - 1)
+                   * display_layout::kFridgeRowStride
+             + display_layout::kFridgeRowHeight
+         < display_layout::kFridgeFooterDividerY);
+  assert(display_layout::kFridgeFooterTextY
+             + display_layout::kFridgeFooterTextHeight
+         <= display_layout::kScreenHeight);
 
   const LayoutRect pairingBox{62, 101, 276, 64};
   const TextBounds pairingCode{0, 0, 216, 32};

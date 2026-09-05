@@ -5,6 +5,10 @@ black/white V2 e-paper prototype. It provisions Wi-Fi through a phone-friendly
 captive portal, securely fetches the paired fridge feed, refreshes the panel
 only when its content changes, and sleeps between checks.
 
+The fridge view shows the nine soonest-expiring items. When more items exist,
+the footer reports the hidden count and directs the user to tap the NFC tag for
+the complete list.
+
 The monochrome Waveshare V2 panel used by this prototype has an SSD1683
 controller and requires the `GxEPD2_420_GDEY042T81` driver. The older
 UC8176-compatible `GxEPD2_420` driver can compile and transmit without errors,
