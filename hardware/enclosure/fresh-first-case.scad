@@ -73,9 +73,13 @@ nfc_pocket_y = 6.0;
 
 // Display placement inside the front shell
 pcb_x = (case_w - pcb_w) / 2;
-pcb_y = top_margin + nfc_chin;
+// Physical fit revision: move the PCB/retaining rails 5 mm toward the lower
+// chin while leaving the exterior display window in its original position.
+pcb_fit_shift_y = -5.0;
+pcb_reference_y = top_margin + nfc_chin;
+pcb_y = pcb_reference_y + pcb_fit_shift_y;
 window_x = pcb_x + ((pcb_w - window_w) / 2);
-window_y = pcb_y + window_bottom_offset;
+window_y = pcb_reference_y + window_bottom_offset;
 
 // Four M2.5 self-tapping rear-cover screws, clear of magnets and carriers.
 screw_d = 2.8;

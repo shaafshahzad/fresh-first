@@ -19,6 +19,11 @@ The visible display window is 86.2 x 64.8 mm. The increased depth is deliberate:
 the female jumper ends plugged into the ESP32 are 15-20 mm long, and the case
 must not press those connectors or force their wires through a sharp turn.
 
+The display PCB retaining rails include a **-5 mm Y fit correction** measured
+from the first physical print. This moves the module toward the lower NFC chin
+without moving the exterior display opening. The correction is exposed as
+`pcb_fit_shift_y` near the top of the SCAD source for later calibration.
+
 ## Files
 
 - `fresh-first-case.scad` - editable source and fit envelopes
@@ -131,7 +136,8 @@ has been specifically redesigned to prevent backfeeding.
 
 1. Print and test the magnet coupon.
 2. Dry-fit the empty front shell, display, and rear carrier before installing
-   the battery or adhesives.
+   the battery or adhesives. The second revision shifts all four display
+   retaining rails 5 mm toward the NFC chin based on the first printed fit.
 3. Install the NFC tag in the lower front pocket with its readable face toward
    the 0.8 mm plastic skin.
 4. Fit the ESP32 into its carrier. Confirm that every plugged Dupont connector
