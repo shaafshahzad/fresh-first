@@ -5,6 +5,17 @@ platform deployed on Vercel. Capture groceries naturally with phrases such as
 `Milk tomorrow` or `Bread Sep 4`; Fresh First parses the dates and keeps the
 list ordered from the soonest expiry to the latest.
 
+[Try the web app](https://fresh-first.vercel.app) ·
+[Read the build story](https://www.shaafshahzad.com/blog/fresh-first)
+
+## Screenshots
+
+![Fresh First web app showing groceries ordered by expiry date](docs/screenshots/web-app.png)
+
+| Working e-paper display | Finished prototype |
+| --- | --- |
+| <img src="docs/screenshots/working-display.jpg" alt="Working Fresh First e-paper display showing an expiry-sorted grocery list" width="600"> | <img src="docs/screenshots/finished-prototype.jpg" alt="Finished Fresh First prototype in its 3D-printed enclosure" width="360"> |
+
 ## Current MVP
 
 - Natural-language quick capture with one item per line
